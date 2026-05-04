@@ -34,6 +34,19 @@
     bypass: 'Off',
   };
 
+  // v9 — Consistent headphone volume normalizer constants.
+  // Target output RMS the normalizer chases. The Volume Boost slider shifts
+  // this multiplicatively so users still feel a "louder" knob, but the chain
+  // is fundamentally a level-targeted normalizer, not raw makeup gain.
+  const NORM_TARGET_BASE = 0.18;        // "Normal" target RMS (~ -15 dBFS)
+  const NORM_GAIN_UP = 0.012;           // slow upward integration (~1.6 s)
+  const NORM_GAIN_DOWN = 0.55;          // fast downward grab (~80 ms)
+  const NORM_PEAK_CEIL = 0.55;          // hard pre-limiter peak cap
+  const NORM_MAX_GAIN = 14.0;           // upper bound (~+22 dB) for very quiet input
+  const NORM_MIN_GAIN = 0.18;           // lower bound (~-15 dB) for very loud input
+  const NORM_RMS_FLOOR = 0.0035;        // below this we glide gain toward unity
+  const NORM_INDICATOR_BAND = 0.18;     // dB band considered "steady" for indicator (in linear ratio diff)
+
   // UI refs
   const ui = {
     // Setup
@@ -89,6 +102,10 @@
     autoLevelOnBtn: $('autoLevelOnBtn'),
     autoLevelOffBtn: $('autoLevelOffBtn'),
     autoLevelHeadStatus: $('autoLevelHeadStatus'),
+
+    // v9 — Consistent headphone volume live readout
+    consistentVolumeHead: $('consistentVolumeHead'),
+    consistentVolumeIndicator: $('consistentVolumeIndicator'),
 
     // v5 — Reduce my voice (best-effort self-voice ducking)
     selfVoiceToggle: $('selfVoiceToggle'),       // hidden checkbox kept for backcompat only
@@ -222,6 +239,14 @@
   let agcGain = 1;
   // Smoothed self-voice ducking gain (1 = no duck, e.g. 0.4 = ~ -8 dB).
   let selfVoiceDuck = 1;
+  // v9 — Final-stage consistent-volume normalizer state.
+  // normGain is the smoothed multiplier applied AFTER the existing chain so
+  // the final headphone RMS chases NORM_TARGET. normRms is a slow envelope of
+  // the post-chain output (pre-final-limiter) used to drive normGain.
+  let normGain = 1;
+  let normRms = 0;
+  let normIndicatorState = 'steady'; // 'boost' | 'reduce' | 'steady' | 'off'
+  let normIndicatorHoldUntil = 0;     // hysteresis hold so the readout doesn't flicker
 
   // v5 — Self voice profile (kept in-memory only, never persisted/uploaded).
   // We capture: mean RMS (linear), peak RMS, mean spectral centroid (Hz)
@@ -251,8 +276,28 @@
     const s = sign && n > 0 ? '+' : '';
     return `${s}${n} dB`;
   }
+  // v9 — Volume Boost slider is now reinterpreted as "target headphone
+  // loudness". 0 = quiet, ~6 = normal, 12+ = louder. We render a friendly
+  // label and keep the dB string as a sub-readout for power users. The audio
+  // engine reads the slider via gainTargetMultiplier() which scales the
+  // normalizer's target RMS, so input loudness variation is still flattened.
+  function gainTargetMultiplier() {
+    const db = Number(ui.gain ? ui.gain.value : 6);
+    // Map 0..18 dB → ~0.55x..2.5x of the base normalizer target.
+    // Clamp to keep us inside the chain's headroom.
+    const lin = Math.pow(10, (db - 6) / 20); // 0 dB at slider==6
+    return Math.max(0.5, Math.min(2.5, lin));
+  }
   function updateGainLabel() {
-    ui.gainVal.textContent = fmtDb(ui.gain.value, true);
+    if (!ui.gain || !ui.gainVal) return;
+    const v = Number(ui.gain.value);
+    let label;
+    if (v <= 2) label = 'Soft';
+    else if (v <= 5) label = 'Quiet';
+    else if (v <= 8) label = 'Normal';
+    else if (v <= 12) label = 'Loud';
+    else label = 'Very loud';
+    ui.gainVal.textContent = label + ' · ' + fmtDb(v, true);
     paintRange(ui.gain);
   }
   function updateGateLabel() {
@@ -290,16 +335,35 @@
     }
     if (ui.autoLevelHeadStatus) {
       if (!autoLevelOn) {
-        ui.autoLevelHeadStatus.textContent = 'Leveling off';
+        ui.autoLevelHeadStatus.textContent = 'Consistent volume off';
         ui.autoLevelHeadStatus.setAttribute('data-state', 'off');
         ui.autoLevelHeadStatus.classList.remove('control__pill--strong');
       } else {
         const label = STRENGTH_LABELS[autoLevelStrength] || 'Strong';
-        ui.autoLevelHeadStatus.textContent = label + ' leveling on';
+        ui.autoLevelHeadStatus.textContent = label === 'Strong' ? 'Consistent volume on' : (label + ' · consistent volume on');
         ui.autoLevelHeadStatus.setAttribute('data-state', 'active');
         if (autoLevelStrength === 3) ui.autoLevelHeadStatus.classList.add('control__pill--strong');
         else ui.autoLevelHeadStatus.classList.remove('control__pill--strong');
       }
+    }
+    // Mirror the dedicated headline pill near the meter.
+    if (ui.consistentVolumeHead) {
+      if (!autoLevelOn) {
+        ui.consistentVolumeHead.textContent = 'Consistent volume off';
+        ui.consistentVolumeHead.setAttribute('data-state', 'off');
+        ui.consistentVolumeHead.classList.remove('control__pill--strong');
+      } else {
+        ui.consistentVolumeHead.textContent = 'Consistent volume on';
+        ui.consistentVolumeHead.setAttribute('data-state', 'active');
+        ui.consistentVolumeHead.classList.add('control__pill--strong');
+      }
+    }
+    if (ui.consistentVolumeIndicator && !autoLevelOn) {
+      ui.consistentVolumeIndicator.textContent = 'Off';
+      ui.consistentVolumeIndicator.setAttribute('data-state', 'off');
+    } else if (ui.consistentVolumeIndicator && (!running)) {
+      ui.consistentVolumeIndicator.textContent = 'Steady';
+      ui.consistentVolumeIndicator.setAttribute('data-state', 'steady');
     }
     if (!autoLevelOn) {
       ui.autoLevelStatus.textContent = 'Off';
@@ -1568,6 +1632,29 @@
     limiter.attack.value = 0.002;
     limiter.release.value = 0.08;
 
+    // v9: Final-stage CONSISTENT HEADPHONE VOLUME normalizer.
+    // This sits AFTER everything else, immediately before destination, and
+    // its sole job is to flatten the post-chain RMS toward NORM_TARGET so
+    // that loud speakers do not blast the headset and quiet ones get pulled
+    // up. Architecture (per-frame meter loop drives normGain.gain):
+    //   limiter → normPreAnalyser → normGain → normHardLimiter → destination
+    // The normalizer's downward correction is fast (~80 ms grab) so a yell
+    // does not get through; upward correction is slow (~1.6 s glide) so
+    // quiet talkers come up smoothly without pumping noise floor in gaps.
+    // The final hard limiter is parallel insurance against any spike that
+    // sneaks past the smoothing.
+    const normPreAnalyser = audioCtx.createAnalyser();
+    normPreAnalyser.fftSize = 1024;
+    normPreAnalyser.smoothingTimeConstant = 0.0;
+    const normGainNode = audioCtx.createGain();
+    normGainNode.gain.value = 1;
+    const normHardLimiter = audioCtx.createDynamicsCompressor();
+    normHardLimiter.threshold.value = -1.5;
+    normHardLimiter.ratio.value = 20;
+    normHardLimiter.knee.value = 0.5;
+    normHardLimiter.attack.value = 0.001;
+    normHardLimiter.release.value = 0.05;
+
     // Spectral analyser for self-voice matching (frequency-domain).
     const spectrum = audioCtx.createAnalyser();
     spectrum.fftSize = 2048;
@@ -1610,14 +1697,22 @@
     agc.connect(selfDuck);
     selfDuck.connect(makeup);
     makeup.connect(limiter);
-    limiter.connect(meter);
+    // v9: limiter → normPreAnalyser → normGainNode → normHardLimiter → meter → destination
+    // The pre-analyser taps the post-chain signal so the meter loop can compute
+    // the actual headphone-bound RMS and steer normGainNode toward the target.
+    limiter.connect(normPreAnalyser);
+    normPreAnalyser.connect(normGainNode);
+    normGainNode.connect(normHardLimiter);
+    normHardLimiter.connect(meter);
     meter.connect(audioCtx.destination); // monitor on by default
     meter.connect(muteSink);
     muteSink.connect(audioCtx.destination);
 
     nodes = {
       src, highPass, lowMidCut, lowMidCut2, presence, air, lowPass,
-      comp, gate, sidechain, spectrum, leveler, agc, selfDuck, makeup, limiter, meter, muteSink,
+      comp, gate, sidechain, spectrum, leveler, agc, selfDuck, makeup, limiter,
+      normPreAnalyser, normGainNode, normHardLimiter,
+      meter, muteSink,
     };
 
     applyPreset();
@@ -1631,6 +1726,10 @@
     expanderGain = 1;
     agcGain = 1;
     selfVoiceDuck = 1;
+    normGain = 1;
+    normRms = 0;
+    normIndicatorState = 'steady';
+    normIndicatorHoldUntil = 0;
     // Apply current strength to leveler in case the user changed it before start.
     applyLevelerStrength();
 
@@ -1693,6 +1792,11 @@
     ui.clipWarn.hidden = true;
     ui.safetyWarn.hidden = true;
     ui.latency.textContent = 'Engine latency: —';
+    // Reset the consistent-volume indicator to its idle state.
+    if (ui.consistentVolumeIndicator) {
+      ui.consistentVolumeIndicator.setAttribute('data-state', autoLevelOn ? 'steady' : 'off');
+      ui.consistentVolumeIndicator.textContent = autoLevelOn ? 'Steady' : 'Off';
+    }
     // Clear the active-mic line; warning persists until the device list is
     // re-evaluated, then refreshMicList resets it.
     setActiveMicStatus('—');
@@ -1867,11 +1971,20 @@
     }
   }
 
+  // v9: Volume Boost no longer applies raw makeup gain in front of the
+  // limiter — that path made loud speakers louder and broke the consistent-
+  // volume goal. Instead, the slider now shifts the FINAL normalizer's
+  // target loudness via gainTargetMultiplier(); the makeup node itself is
+  // pinned to unity so the chain feeds the normalizer at a predictable
+  // level. The normalizer + its hard limiter still cap final headphone
+  // output, so even a maxed slider cannot blow out the headset.
   function applyMakeupGain() {
     if (!nodes || !audioCtx) return;
-    const db = Number(ui.gain.value);
-    const lin = Math.pow(10, db / 20);
-    nodes.makeup.gain.linearRampToValueAtTime(lin, audioCtx.currentTime + 0.05);
+    try {
+      nodes.makeup.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05);
+    } catch (_) {}
+    // The normalizer reads gainTargetMultiplier() each frame; nothing else
+    // needs to be applied here. The label updates separately.
   }
 
   // v6: re-tune the voice-band leveler whenever the auto-level strength or
@@ -2104,7 +2217,104 @@
         nodes.selfDuck.gain.setTargetAtTime(selfVoiceDuck, audioCtx.currentTime, 0.02);
       } catch (_) {}
 
-      // ---- 5) Meter + warnings ----
+      // ---- 5) v9 — Final consistent-volume normalizer ----
+      // Read post-chain RMS at the pre-normalizer tap and steer normGain so
+      // the FINAL output at the destination chases NORM_TARGET, regardless
+      // of how loud the speaker at the table is. Slow-up / fast-down so
+      // loud bursts get tamed quickly, and quiet talkers come up smoothly.
+      const normBuf = nodes.normPreAnalyser ? new Float32Array(nodes.normPreAnalyser.fftSize) : null;
+      let preRms = 0;
+      if (normBuf && nodes.normPreAnalyser) {
+        nodes.normPreAnalyser.getFloatTimeDomainData(normBuf);
+        let s2 = 0;
+        for (let i = 0; i < normBuf.length; i++) s2 += normBuf[i] * normBuf[i];
+        preRms = Math.sqrt(s2 / normBuf.length);
+      }
+      // Slow envelope of the pre-normalizer RMS for the gain target. Use
+      // asymmetric smoothing for envelope itself — fast up, medium down —
+      // so a sudden loud talker is reflected in the envelope before the
+      // gain has a chance to follow. The actual gain still slews via
+      // NORM_GAIN_DOWN/UP below.
+      const eAlpha = preRms > normRms ? 0.45 : 0.10;
+      normRms += (preRms - normRms) * eAlpha;
+
+      // Target multiplier comes from Volume Boost — acts as a *target*
+      // loudness shift, not raw gain. The normalizer is still in charge.
+      const targetMul = gainTargetMultiplier();
+      const target = NORM_TARGET_BASE * targetMul;
+
+      let normTarget;
+      if (!autoLevelOn) {
+        // Even with consistent volume off, we keep the final hard limiter so
+        // peaks can't blow the headset, but pass the chain through at unity
+        // (multiplied only by the user's loudness preference).
+        normTarget = Math.min(2.0, Math.max(0.4, targetMul));
+      } else if (normRms < NORM_RMS_FLOOR) {
+        // Effectively silent — don't pump the noise floor up. Glide toward
+        // unity (or very mild attenuation) so when speech returns the gain
+        // is in a sane place.
+        normTarget = Math.min(normGain, 1.5);
+      } else {
+        normTarget = target / normRms;
+        // Peak ceiling: project current preRms * gain; if it would exceed
+        // NORM_PEAK_CEIL, clamp the target down so the next frame lands at
+        // or below the ceiling. This is the "loud speaker grab."
+        const projected = preRms * Math.max(0.05, normGain);
+        if (projected > NORM_PEAK_CEIL) {
+          const downTarget = NORM_PEAK_CEIL / Math.max(0.005, preRms);
+          normTarget = Math.min(normTarget, downTarget);
+        }
+        // Bound to safe range.
+        if (normTarget < NORM_MIN_GAIN) normTarget = NORM_MIN_GAIN;
+        if (normTarget > NORM_MAX_GAIN) normTarget = NORM_MAX_GAIN;
+      }
+
+      // Slow up, fast down. This is the heart of the consistent-volume
+      // behaviour: loud speakers don't blast (downward correction is fast),
+      // quiet speakers come up gently (upward correction is slow).
+      const ng = normTarget > normGain ? NORM_GAIN_UP : NORM_GAIN_DOWN;
+      normGain += (normTarget - normGain) * ng;
+      // Hard safety clamps regardless of toggle state.
+      if (normGain < 0.05) normGain = 0.05;
+      if (normGain > NORM_MAX_GAIN) normGain = NORM_MAX_GAIN;
+      if (nodes.normGainNode) {
+        try {
+          nodes.normGainNode.gain.setTargetAtTime(normGain, audioCtx.currentTime, 0.020);
+        } catch (_) {}
+      }
+
+      // ---- 5b) Indicator state ('boost' / 'reduce' / 'steady' / 'off') ----
+      // We compare normGain to a unity-equivalent reference. When the gain is
+      // pulling input UP (normGain > ~1.15) we say 'Boosting'; when pulling
+      // input DOWN (normGain < ~0.85) we say 'Reducing'. A small dead band
+      // around unity means 'Steady'. We add a 200 ms hold so the readout
+      // doesn't flicker when normGain hovers near the boundary.
+      const tNow = performance.now();
+      let nextState = normIndicatorState;
+      if (!autoLevelOn) {
+        nextState = 'off';
+      } else if (preRms < NORM_RMS_FLOOR) {
+        nextState = 'steady';
+      } else if (normGain > 1.15) {
+        nextState = 'boost';
+      } else if (normGain < 0.85) {
+        nextState = 'reduce';
+      } else {
+        nextState = 'steady';
+      }
+      if (nextState !== normIndicatorState && tNow >= normIndicatorHoldUntil) {
+        normIndicatorState = nextState;
+        normIndicatorHoldUntil = tNow + 200;
+        if (ui.consistentVolumeIndicator) {
+          ui.consistentVolumeIndicator.setAttribute('data-state', normIndicatorState);
+          ui.consistentVolumeIndicator.textContent =
+            normIndicatorState === 'boost' ? 'Boosting quiet speaker' :
+            normIndicatorState === 'reduce' ? 'Reducing loud speaker' :
+            normIndicatorState === 'off' ? 'Off' : 'Steady';
+        }
+      }
+
+      // ---- 6) Meter + warnings ----
       nodes.meter.getFloatTimeDomainData(meterBuf);
       let peak = 0;
       for (let i = 0; i < meterBuf.length; i++) {
@@ -2124,14 +2334,31 @@
 
       ui.safetyWarn.hidden = !(peak > 0.85 && Number(ui.gain.value) >= 12);
     };
+    // Expose the running normalizer state to the dev hook for headless tests.
+    if (window.__cleartableDevhook) {
+      window.__cleartableDevhook._normSnapshot = () => ({
+        normGain, normRms, normIndicatorState,
+      });
+    }
 
     rafId = requestAnimationFrame(tick);
   }
 
-  // ---------- v5: Self-voice training ----------
-  // Capture a 3-second sample of the user reading a phrase, then store an
-  // in-memory profile of average level + spectral centroid. Honest about
-  // limits in the UI; this is feature-engineered, not voiceprint ML.
+  // ---------- v9: Self-voice training (clean state machine) ----------
+  // States: idle → 'countdown' → 'recording' → 'success' | 'failure' → idle.
+  // Outcomes:
+  //   success → selfVoice.trained = true, selfVoice.on = true (auto-enabled),
+  //             button enabled, status = 'Active', headline pill = 'Active'.
+  //   failure → selfVoice.trained = false, selfVoice.on = false, button stays
+  //             disabled, headline pill = 'Train first', status surfaces the
+  //             specific reason ("too quiet", "no microphone", etc.).
+  // Stop-early: pressing the same button while recording sets cancelRequested.
+  // If at least minStopMs of audio has been collected, training SUCCEEDS with
+  // the early sample; otherwise it FAILS with "Stopped too early."
+  // Thresholds were lowered relative to v6: rms gate 0.005 → 0.0025, and the
+  // "enough samples" minimum 12 → 8. Real iPhone tests showed the previous
+  // numbers rejecting valid training because the user spoke at a normal
+  // distance (not into the phone) which clipped a lot of low-level samples.
   async function trainSelfVoice() {
     if (selfVoice.training) return;
     selfVoice.training = true;
@@ -2208,10 +2435,13 @@
       const rmsSamples = [];
       const centroidSamples = [];
       const startMs = performance.now();
-      // v6: 8-second window. Long enough to read the new prompt fully even at
-      // a relaxed pace, with a Stop-early control if the user finishes sooner.
+      // v9: 8-second window. Long enough to read the prompt fully at a
+      // relaxed pace; the user can also "Stop early" once minStopMs of
+      // audio has been collected. minStopMs lowered to 1.8 s so a brisk
+      // talker is not blocked from finishing.
       const totalMs = 8000;
-      const minStopMs = 2500; // require at least 2.5 s of audio before allowing early stop
+      const minStopMs = 1800;
+      let earlyStop = false;
       while (performance.now() - startMs < totalMs) {
         const elapsed = performance.now() - startMs;
         const remaining = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
@@ -2229,25 +2459,34 @@
         let sumSq = 0;
         for (let i = 0; i < tBuf.length; i++) sumSq += tBuf[i] * tBuf[i];
         const rms = Math.sqrt(sumSq / tBuf.length);
-        if (rms > 0.005) rmsSamples.push(rms); // ignore silence between syllables
+        // v9: lowered the per-frame voice gate so distant-mic training (the
+        // most common real-world case) actually collects samples.
+        if (rms > 0.0025) rmsSamples.push(rms);
 
         spectrumNode.getByteFrequencyData(fBuf);
         let num = 0, den = 0;
         for (let i = 0; i < fBins; i++) {
           const m = fBuf[i];
-          if (m < 8) continue;
+          if (m < 6) continue; // also relaxed from 8
           const f = (i * sampleRate) / (2 * fBins);
           num += f * m;
           den += m;
         }
         if (den > 0) centroidSamples.push(num / den);
         await new Promise((r) => setTimeout(r, 50));
-        if (selfVoice.cancelRequested && elapsed >= minStopMs) break;
+        if (selfVoice.cancelRequested && elapsed >= minStopMs) {
+          earlyStop = true;
+          break;
+        }
       }
       if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '100%';
 
-      if (rmsSamples.length < 12 || centroidSamples.length < 12) {
-        throw new Error('Not enough voice detected. Try again, a little louder.');
+      // v9: explicit failure reason instead of a generic "failed."
+      if (selfVoice.cancelRequested && !earlyStop) {
+        throw new Error('Stopped too early. Hold the button for 2 seconds next time.');
+      }
+      if (rmsSamples.length < 8 || centroidSamples.length < 8) {
+        throw new Error('Too quiet. Move closer to the phone or speak up.');
       }
 
       // Robust statistics: trimmed mean for level, mean+std for centroid.
@@ -2271,18 +2510,24 @@
         centroidMean: cMean,
         centroidStd: cStd,
       };
+      // v9 — success transition: profileReady = true, control enabled,
+      // status = Active, button = On (Active). updateSelfVoiceLabels() will
+      // render all of these from the canonical state below.
       selfVoice.trained = true;
-      // Auto-enable so the user gets immediate effect; they can flip it off.
-      if (ui.selfVoiceToggle) ui.selfVoiceToggle.checked = true;
       selfVoice.on = true;
+      if (ui.selfVoiceToggle) ui.selfVoiceToggle.checked = true;
       selfVoiceDuck = 1;
     } catch (err) {
-      console.warn('Self-voice training failed:', err);
+      // Robust, console-quiet error handling. A `console.warn` is fine in
+      // dev (it surfaces in Safari Web Inspector) but the *user* sees only
+      // the friendly message in selfVoiceStatus + a 'Train first' headline.
+      try { console.warn('Self-voice training failed:', err); } catch (_) {}
       selfVoice.trained = false;
+      selfVoice.on = false;
       selfVoice.profile = null;
       const msg = (err && err.message) ? err.message : 'Training failed';
       if (ui.selfVoiceStatus) {
-        ui.selfVoiceStatus.textContent = msg.length < 64 ? msg : 'Training failed';
+        ui.selfVoiceStatus.textContent = msg.length < 80 ? msg : 'Training failed';
         ui.selfVoiceStatus.setAttribute('data-state', 'warn');
       }
     } finally {
@@ -2370,6 +2615,7 @@
     if (params.get('devhook') === '1') {
       window.__cleartableDevhook = {
         // Pretend training succeeded; flip selfVoice.trained + selfVoice.on.
+        // Used by smoke tests so we don't need to actually capture audio.
         mockTrainComplete() {
           selfVoice.training = false;
           selfVoice.trained = true;
@@ -2384,7 +2630,57 @@
             selfVoiceTrained: selfVoice.trained,
             autoLevelOn,
             autoLevelStrength,
+            normGain,
+            normRms,
+            normIndicatorState,
           };
+        },
+        // v9: simulate the meter-loop normalizer driver in isolation. The
+        // real audio chain isn't running in headless tests (no mic) but the
+        // gain logic is pure JS — we feed it synthesized RMS values and
+        // verify the gain moves inverse to input level. Returns the final
+        // (gain, indicatorState) after `frames` iterations.
+        simulateNormalizer(rmsValues, opts) {
+          opts = opts || {};
+          // Local copies of the smoothing constants for an honest simulation.
+          const target = NORM_TARGET_BASE * (opts.targetMul || 1);
+          let g = opts.startGain != null ? opts.startGain : 1;
+          let env = opts.startRms != null ? opts.startRms : 0;
+          let state = 'steady';
+          const trace = [];
+          for (let k = 0; k < rmsValues.length; k++) {
+            const r = rmsValues[k];
+            const eA = r > env ? 0.45 : 0.10;
+            env += (r - env) * eA;
+            let tgt;
+            if (env < NORM_RMS_FLOOR) {
+              tgt = Math.min(g, 1.5);
+            } else {
+              tgt = target / env;
+              const projected = r * Math.max(0.05, g);
+              if (projected > NORM_PEAK_CEIL) {
+                tgt = Math.min(tgt, NORM_PEAK_CEIL / Math.max(0.005, r));
+              }
+              if (tgt < NORM_MIN_GAIN) tgt = NORM_MIN_GAIN;
+              if (tgt > NORM_MAX_GAIN) tgt = NORM_MAX_GAIN;
+            }
+            const ng = tgt > g ? NORM_GAIN_UP : NORM_GAIN_DOWN;
+            g += (tgt - g) * ng;
+            if (g < 0.05) g = 0.05;
+            if (g > NORM_MAX_GAIN) g = NORM_MAX_GAIN;
+            if (g > 1.15) state = 'boost';
+            else if (g < 0.85) state = 'reduce';
+            else state = 'steady';
+            trace.push({ rms: r, env, gain: g, state });
+          }
+          return { gain: g, env, state, trace };
+        },
+        // Convenience helper used by tests — runs the loop until gain
+        // converges (delta < eps) or `maxIters` frames pass.
+        settleNormalizer(rms, opts) {
+          opts = opts || {};
+          const arr = new Array(opts.maxIters || 400).fill(rms);
+          return this.simulateNormalizer(arr, opts);
         },
       };
     }

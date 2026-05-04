@@ -1228,3 +1228,60 @@ input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offs
   font-weight: 600;
   letter-spacing: -0.005em;
 }
+
+/* v9 — Consistent headphone volume live readout */
+.cvolume {
+  margin: 14px auto 0;
+  max-width: 460px;
+  width: 100%;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2, rgba(255,255,255,0.03));
+  text-align: left;
+}
+.cvolume__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cvolume__indicator {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: transparent;
+  transition: color .25s ease, background-color .25s ease, border-color .25s ease;
+  white-space: nowrap;
+}
+.cvolume__indicator[data-state="boost"] {
+  color: var(--accent-ink, #06231f);
+  background: linear-gradient(180deg, var(--accent, #69d6c5) 0%, var(--accent-strong, #36b6a3) 100%);
+  border-color: rgba(0,0,0,.2);
+}
+.cvolume__indicator[data-state="reduce"] {
+  color: #ffd9b3;
+  background: rgba(196,108,46,0.16);
+  border-color: rgba(196,108,46,0.55);
+}
+.cvolume__indicator[data-state="steady"] {
+  color: var(--text);
+  background: transparent;
+  border-color: var(--border-strong, rgba(255,255,255,0.18));
+}
+.cvolume__indicator[data-state="off"] {
+  color: var(--text-dim);
+  background: transparent;
+  border-color: var(--border);
+}
+.cvolume__hint {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}

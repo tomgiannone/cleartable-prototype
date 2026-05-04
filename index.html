@@ -208,6 +208,17 @@
         </div>
       </div>
 
+      <!-- v9: live readout for the final consistent-volume normalizer.
+           Shows whether the leveler is currently boosting a quiet talker,
+           reducing a loud one, or holding steady. -->
+      <div class="cvolume" id="consistentVolume" data-testid="control-consistent-volume">
+        <div class="cvolume__row">
+          <span class="control__pill control__pill--strong" id="consistentVolumeHead" data-testid="text-consistent-volume-headline">Consistent volume on</span>
+          <span class="cvolume__indicator" id="consistentVolumeIndicator" data-testid="status-consistent-volume" data-state="steady" aria-live="polite">Steady</span>
+        </div>
+        <p class="cvolume__hint">Quiet voices are lifted, loud voices are held back so the headset stays at a steady listening level.</p>
+      </div>
+
       <p class="warn" id="clipWarn" data-testid="warning-clipping" hidden>Sound is too loud — try lowering Volume Boost.</p>
       <p class="warn warn--safety" id="safetyWarn" data-testid="warning-safety" hidden>Output is loud. Lower the volume to protect your hearing.</p>
     </div>
@@ -215,10 +226,11 @@
     <section class="controls" aria-label="Sound controls">
       <div class="control" data-testid="control-volume">
         <div class="control__head">
-          <label for="gain">Volume Boost</label>
-          <span class="control__val" id="gainVal" data-testid="text-gain-value">+6 dB</span>
+          <label for="gain">Headphone loudness</label>
+          <span class="control__val" id="gainVal" data-testid="text-gain-value">Normal</span>
         </div>
-        <input id="gain" type="range" min="0" max="18" step="1" value="6" data-testid="slider-gain" aria-label="Volume Boost" />
+        <input id="gain" type="range" min="0" max="18" step="1" value="6" data-testid="slider-gain" aria-label="Headphone loudness" />
+        <p class="control__hint">Sets your <em>target</em> listening loudness. Consistent volume keeps every speaker at this level — quiet voices come up, loud ones get held back.</p>
       </div>
 
       <div class="control" data-testid="control-noise">
@@ -246,13 +258,13 @@
         </select>
       </div>
 
-      <!-- Level voices evenly (AGC / leveling toward target output) -->
+      <!-- Consistent headphone volume (final-stage normalizer) -->
       <div class="control" data-testid="control-auto-level">
         <div class="control__head">
-          <label for="autoLevelToggle" id="autoLevelLabel">Level voices evenly</label>
-          <span class="control__pill control__pill--strong" id="autoLevelHeadStatus" data-testid="text-auto-level-headline">Strong leveling on</span>
+          <label for="autoLevelToggle" id="autoLevelLabel">Consistent headphone volume</label>
+          <span class="control__pill control__pill--strong" id="autoLevelHeadStatus" data-testid="text-auto-level-headline">Consistent volume on</span>
         </div>
-        <p class="control__hint">Quieter, farther voices come up; loud nearby voices get held back to a steady listening level. A built-in limiter prevents harsh clipping. <strong>Strong</strong> is the default, recommended for restaurants.</p>
+        <p class="control__hint">A final-stage leveler keeps every speaker at roughly the same loudness in your headset. Quiet voices are boosted; loud voices are pulled back to your target. A hard limiter prevents spikes. <strong>Strong</strong> is the default, recommended for restaurants. Mapped from the older “Level voices evenly” control — same name, more aggressive normalizer behind it.</p>
         <div class="segctl" role="group" aria-labelledby="autoLevelLabel">
           <button type="button" class="segctl__btn" id="autoLevelOnBtn" data-testid="button-auto-level-on" aria-pressed="true">Leveling: On</button>
           <button type="button" class="segctl__btn" id="autoLevelOffBtn" data-testid="button-auto-level-off" aria-pressed="false">Off</button>
@@ -416,10 +428,12 @@
         </details>
 
         <details class="help" data-testid="details-auto-level">
-          <summary><span class="help__title">Auto level voices</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>Two stages working together: a real-time voice-band leveler that flattens loud peaks at the audio thread, and a slower automatic gain control (AGC) that lifts quieter, farther voices toward a steady listening level. A soft limiter behind both holds final peaks back to protect your hearing and the headset.</p>
-          <p>Strength <strong>Off</strong> applies only a transparent peak compressor and your manual Volume Boost. <strong>Light</strong> nudges levels gently. <strong>Medium</strong> behaves like a broadcast leveler. <strong>Strong</strong> (the default) is tuned for restaurant tables — it lifts farther voices substantially and pins louder near voices to roughly the same output level. The trade-off at <strong>Strong</strong> is that during quiet moments you may hear the room come up; that is the AGC making the most of every voice.</p>
-          <p>If a particular speaker still sounds too loud, the cause is usually that they are <em>much</em> closer to the phone than the others; try moving the phone slightly farther from them, or stepping the strength back to <strong>Medium</strong>.</p>
+          <summary><span class="help__title">Consistent headphone volume</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>This is the most important setting in noisy rooms. A final-stage <strong>normalizer</strong> sits at the very end of the audio chain. It listens to the post-processed sound that's about to go to your headset and continuously scales it so that loud talkers do <em>not</em> blast and quiet talkers come up. Think of it like an automatic volume knob that's faster on the way down (so a yell can't sneak through) and slower on the way up (so the room noise floor isn't pumped between sentences).</p>
+          <p>Behind the normalizer, a hard limiter caps the final peak so even the loudest input cannot exceed a safe headphone level.</p>
+          <p><strong>Headphone loudness</strong> shifts the normalizer's <em>target</em> level. Higher target = louder, but the chain still flattens loud-vs-quiet differences. So Volume Boost can't accidentally make a loud talker dangerously loud — it just sets where the consistent level sits.</p>
+          <p>The older “Level voices evenly” label maps to the same final normalizer; we just renamed it for clarity.</p>
+          <p>Strength <strong>Off</strong> bypasses the upstream voice-band leveler but still keeps the final hard limiter active for safety. <strong>Light/Medium/Strong</strong> trade naturalness for flatness; <strong>Strong</strong> (the default) is tuned for restaurant tables.</p>
         </details>
 
         <details class="help" data-testid="details-self-voice">
