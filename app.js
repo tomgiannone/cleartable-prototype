@@ -93,6 +93,8 @@
     selfVoiceStatus: $('selfVoiceStatus'),
     trainSelfVoiceBtn: $('trainSelfVoiceBtn'),
     selfVoiceControl: document.querySelector('[data-testid="control-self-voice"]'),
+    selfVoiceProgress: $('selfVoiceProgress'),
+    selfVoicePrompt: $('selfVoicePrompt'),
 
     // v5 — Background-audio note
     backgroundAudioWarn: $('backgroundAudioWarn'),
@@ -157,11 +159,15 @@
     clarity: 2 /* restaurant */,
     echoReduction: true,
     autoLevel: true,
-    autoLevelStrength: 2,    // 0=off,1=low,2=med,3=high
+    autoLevelStrength: 3,    // 0=off,1=light,2=medium,3=strong (v6 default)
     selfVoiceOn: false,
-    selfVoiceStrength: 2,
+    selfVoiceStrength: 3,    // v6: default Strong duck depth
   };
-  const STRENGTH_LABELS = ['Off', 'Low', 'Medium', 'High'];
+  // Strength labels are paired with target loudness, max boost, and limiter
+  // headroom in the meter loop. v6 default is "Strong" — restaurant testing
+  // showed Medium was not aggressive enough to even out near vs. far talkers.
+  const STRENGTH_LABELS = ['Off', 'Light', 'Medium', 'Strong'];
+  const SELF_VOICE_STRENGTH_LABELS = ['Off', 'Light', 'Medium', 'Strong'];
 
   // Each preset describes a five-band EQ + dynamics settings:
   //   presence: 1.5–3 kHz peak gain (consonant intelligibility)
@@ -191,10 +197,16 @@
   // by sliding the highpass corner up by ~30 Hz when ON.
   let echoReductionOn = true;
 
-  // v5 — Auto level (smoothed AGC) state
+  // v6 — Auto level (smoothed AGC) state
   let autoLevelOn = true;
-  let autoLevelStrength = 2;
-  // Smoothed envelope (linear amplitude) used by both the expander and AGC.
+  let autoLevelStrength = 3;
+  // Two envelopes: a fast one for peak/loud detection (~50 ms), and a slow
+  // one for the average voice level the AGC chases (~500 ms). The slow one
+  // is what makes restaurant leveling feel like a steady listening level
+  // instead of pumping every syllable.
+  let envFast = 0;
+  let envSlow = 0;
+  // Backwards-compat alias used by older code paths (calibrate, etc.)
   let envSmooth = 0;
   // Smoothed downward-expander gain (0..1) — replaces hard gate.
   let expanderGain = 1;
@@ -210,10 +222,11 @@
   // not voiceprint speaker separation and will sometimes false-trip.
   const selfVoice = {
     on: false,
-    strength: 2,
+    strength: 3,
     trained: false,
     profile: null, // { rmsMean, rmsPeak, centroidMean, centroidStd }
     training: false,
+    cancelRequested: false,
   };
 
   // ---------- Slider visual progress (CSS var) ----------
@@ -259,11 +272,13 @@
       ui.autoLevelStatus.textContent = 'Off';
       ui.autoLevelStatus.setAttribute('data-state', 'off');
       if (ui.autoLevelStrength) ui.autoLevelStrength.disabled = true;
+      if (typeof applyLevelerStrength === 'function') applyLevelerStrength();
       return;
     }
     if (ui.autoLevelStrength) ui.autoLevelStrength.disabled = false;
-    ui.autoLevelStatus.textContent = 'On \u00b7 ' + (STRENGTH_LABELS[autoLevelStrength] || 'Medium');
+    ui.autoLevelStatus.textContent = 'On \u00b7 ' + (STRENGTH_LABELS[autoLevelStrength] || 'Strong');
     ui.autoLevelStatus.setAttribute('data-state', 'active');
+    if (typeof applyLevelerStrength === 'function') applyLevelerStrength();
   }
 
   function updateSelfVoiceLabels() {
@@ -271,7 +286,7 @@
       paintRange(ui.selfVoiceStrength);
       const s = Number(ui.selfVoiceStrength.value);
       selfVoice.strength = s;
-      if (ui.selfVoiceStrengthVal) ui.selfVoiceStrengthVal.textContent = STRENGTH_LABELS[s] || 'Medium';
+      if (ui.selfVoiceStrengthVal) ui.selfVoiceStrengthVal.textContent = SELF_VOICE_STRENGTH_LABELS[s] || 'Strong';
     }
     if (!ui.selfVoiceStatus) return;
     if (selfVoice.training) {
@@ -376,7 +391,16 @@
     ui.selfVoiceStrength.addEventListener('input', updateSelfVoiceLabels);
   }
   if (ui.trainSelfVoiceBtn) {
-    ui.trainSelfVoiceBtn.addEventListener('click', () => { trainSelfVoice(); });
+    ui.trainSelfVoiceBtn.addEventListener('click', () => {
+      // While training, the same button reads "Stop early" and cancels the
+      // recording loop. minStopMs in trainSelfVoice() guards against ending
+      // the capture so early that the profile would be unreliable.
+      if (selfVoice.training) {
+        selfVoice.cancelRequested = true;
+        return;
+      }
+      trainSelfVoice();
+    });
   }
 
   // ---------- Echo / room reduction quick toggle ----------
@@ -1243,6 +1267,18 @@
     sidechain.fftSize = 1024;
     sidechain.smoothingTimeConstant = 0.4;
 
+    // v6: voice-band compressor ("leveler") — a serious DynamicsCompressor
+    // sitting in front of the AGC. Its job is to flatten loud talkers in real
+    // time at the audio thread (not just the slow meter-loop AGC), so a near
+    // speaker can never exceed the leveler ceiling no matter how loud they
+    // are. AGC then handles the *slow* makeup needed to lift quiet voices.
+    const leveler = audioCtx.createDynamicsCompressor();
+    leveler.threshold.value = -28;
+    leveler.ratio.value = 6;
+    leveler.knee.value = 18;
+    leveler.attack.value = 0.005;
+    leveler.release.value = 0.18;
+
     // v5: AGC stage — modulated by the meter loop toward a target output.
     const agc = audioCtx.createGain();
     agc.gain.value = 1;
@@ -1301,7 +1337,9 @@
     comp.connect(sidechain);
     comp.connect(spectrum);
     comp.connect(gate);
-    gate.connect(agc);
+    // v6: gate → hardware leveler → AGC → self-voice duck → makeup → limiter
+    gate.connect(leveler);
+    leveler.connect(agc);
     agc.connect(selfDuck);
     selfDuck.connect(makeup);
     makeup.connect(limiter);
@@ -1312,7 +1350,7 @@
 
     nodes = {
       src, highPass, lowMidCut, lowMidCut2, presence, air, lowPass,
-      comp, gate, sidechain, spectrum, agc, selfDuck, makeup, limiter, meter, muteSink,
+      comp, gate, sidechain, spectrum, leveler, agc, selfDuck, makeup, limiter, meter, muteSink,
     };
 
     applyPreset();
@@ -1321,9 +1359,13 @@
 
     // Reset dynamic-stage smoothers so the engine starts gracefully.
     envSmooth = 0;
+    envFast = 0;
+    envSlow = 0;
     expanderGain = 1;
     agcGain = 1;
     selfVoiceDuck = 1;
+    // Apply current strength to leveler in case the user changed it before start.
+    applyLevelerStrength();
 
     running = true;
     ui.toggle.classList.add('is-live');
@@ -1565,6 +1607,36 @@
     nodes.makeup.gain.linearRampToValueAtTime(lin, audioCtx.currentTime + 0.05);
   }
 
+  // v6: re-tune the voice-band leveler whenever the auto-level strength or
+  // toggle changes. Higher strengths = lower threshold + higher ratio so
+  // loud talkers get pinned harder before they reach the AGC. When auto
+  // level is OFF we relax the leveler to a transparent compressor so the
+  // signal still gets gentle peak control without aggressive flattening.
+  function applyLevelerStrength() {
+    if (!nodes || !audioCtx || !nodes.leveler) return;
+    const t = audioCtx.currentTime;
+    const ramp = 0.05;
+    let threshold = -28, ratio = 6, knee = 18, attack = 0.005, release = 0.18;
+    if (!autoLevelOn || autoLevelStrength === 0) {
+      // Transparent peak-only mode.
+      threshold = -10; ratio = 2; knee = 12; attack = 0.010; release = 0.25;
+    } else if (autoLevelStrength === 1) {
+      // Light: gentle, only catches the loudest peaks.
+      threshold = -22; ratio = 3; knee = 18; attack = 0.008; release = 0.22;
+    } else if (autoLevelStrength === 2) {
+      // Medium: typical broadcast-leveler feel.
+      threshold = -28; ratio = 5; knee = 18; attack = 0.005; release = 0.18;
+    } else {
+      // Strong (v6 default): heavy real-time leveling for restaurants.
+      threshold = -32; ratio = 8; knee = 16; attack = 0.004; release = 0.14;
+    }
+    try { nodes.leveler.threshold.linearRampToValueAtTime(threshold, t + ramp); } catch (_) {}
+    try { nodes.leveler.ratio.linearRampToValueAtTime(ratio, t + ramp); } catch (_) {}
+    try { nodes.leveler.knee.linearRampToValueAtTime(knee, t + ramp); } catch (_) {}
+    try { nodes.leveler.attack.linearRampToValueAtTime(attack, t + ramp); } catch (_) {}
+    try { nodes.leveler.release.linearRampToValueAtTime(release, t + ramp); } catch (_) {}
+  }
+
   function setStatus(text, kind) {
     ui.status.textContent = text;
     ui.status.classList.remove('is-live', 'is-error');
@@ -1594,30 +1666,46 @@
     const freqBuf = new Uint8Array(freqBins);
     const sampleRate = audioCtx.sampleRate || 48000;
 
-    // Smoothing constants — envelope attack faster than release for natural
-    // dynamics. Release ~250 ms means the expander glides instead of slams.
-    const ATTACK = 0.20;     // alpha for envelope rise
-    const RELEASE = 0.05;    // alpha for envelope fall (slower)
-    // Gain-stage smoothing (per-frame). Lower = slower, smoother.
+    // v6 smoothing constants. The fast envelope tracks syllable-level peaks
+    // for downward AGC and self-voice detection; the slow envelope tracks
+    // the conversational level the AGC chases for upward makeup. Two-rate
+    // smoothing prevents the classic AGC pumping you get from a single
+    // mid-rate envelope.
+    const FAST_ATTACK = 0.35;   // ~25 ms attack
+    const FAST_RELEASE = 0.12;  // ~60 ms release
+    const SLOW_ATTACK = 0.04;   // ~250 ms upward integration
+    const SLOW_RELEASE = 0.015; // ~700 ms downward integration
+    // Expander (downward gate) gain smoothing.
     const EXP_ATTACK = 0.30;
     const EXP_RELEASE = 0.06;
-    const AGC_ATTACK = 0.05; // slow rise so we don't pump
-    const AGC_RELEASE = 0.20; // faster fall to react to loud peaks
-    const DUCK_ATTACK = 0.35; // duck quickly when self-voice detected
-    const DUCK_RELEASE = 0.10; // ease back smoothly
+    // AGC gain smoothing: asymmetric. Slow when increasing gain (so quiet
+    // gaps don't pump up the noise floor), fast when decreasing gain (so a
+    // sudden loud talker gets snapped back inside ~150 ms).
+    const AGC_GAIN_UP = 0.025;     // ~1.2 s upward glide
+    const AGC_GAIN_DOWN = 0.40;    // ~120 ms downward grab
+    const DUCK_ATTACK = 0.45;      // duck quickly when self-voice detected
+    const DUCK_RELEASE = 0.08;     // ease back smoothly
 
     const tick = () => {
       if (!running || !nodes) return;
       rafId = requestAnimationFrame(tick);
 
-      // ---- 1) Compute smoothed envelope (linear RMS) ----
+      // ---- 1) Compute fast + slow smoothed envelopes (linear RMS) ----
       nodes.sidechain.getFloatTimeDomainData(sideBuf);
       let sumSq = 0;
       for (let i = 0; i < sideBuf.length; i++) sumSq += sideBuf[i] * sideBuf[i];
       const rms = Math.sqrt(sumSq / sideBuf.length);
-      const a = rms > envSmooth ? ATTACK : RELEASE;
-      envSmooth += (rms - envSmooth) * a;
-      const envDb = envSmooth > 1e-6 ? 20 * Math.log10(envSmooth) : -120;
+      const fa = rms > envFast ? FAST_ATTACK : FAST_RELEASE;
+      envFast += (rms - envFast) * fa;
+      // Slow envelope: only follow when above a voice-activity floor so a
+      // long silence between turns doesn't pull the slow level to zero and
+      // make the AGC slam to max gain when the next person speaks.
+      const voiceActive = rms > 0.012;
+      const sa = voiceActive ? (rms > envSlow ? SLOW_ATTACK : SLOW_RELEASE) : 0;
+      if (sa > 0) envSlow += (rms - envSlow) * sa;
+      // envSmooth keeps the v5 semantics for legacy callers (calibrate, etc.)
+      envSmooth = envFast;
+      const envDb = envFast > 1e-6 ? 20 * Math.log10(envFast) : -120;
 
       // ---- 2) Downward expander ("Smooth Noise Reduction") ----
       // Soft-knee around the threshold with hysteresis: opens at
@@ -1650,36 +1738,68 @@
         nodes.gate.gain.setTargetAtTime(expanderGain, audioCtx.currentTime, 0.015);
       } catch (_) {}
 
-      // ---- 3) AGC / Auto level voices ----
-      // Scale toward TARGET = 0.18 (linear, ~ -15 dBFS). Only apply when
-      // signal is above the expander's soft floor (treat near-silence as
-      // "don't pump").
-      const TARGET = 0.18;
-      const minG = 0.5;             // -6 dB
-      // Strength controls maximum boost: 0=off (1.0), 1=4x, 2=6x, 3=10x.
-      const maxByStrength = [1.0, 4.0, 6.0, 10.0];
-      const maxG = maxByStrength[autoLevelStrength] || 6.0;
+      // ---- 3) AGC / Auto level voices (v6) ----
+      // Two-rate AGC. The slow envelope sets the *upward* makeup target
+      // (so quiet talkers come up smoothly), the fast envelope clamps that
+      // gain instantly downward when a loud talker leans in. Combined with
+      // the audio-thread leveler upstream, this makes near vs. far speakers
+      // hit the headset at much closer levels.
+      //
+      // Strength controls target loudness, max boost, and downward floor.
+      // Higher strengths = louder target + more boost + tighter peak ceiling.
+      const TARGET_BY_STRENGTH = [0.20, 0.18, 0.22, 0.26]; // Off/Light/Med/Strong
+      const MAX_GAIN_BY_STRENGTH = [1.0, 5.0, 10.0, 16.0];
+      const MIN_GAIN_BY_STRENGTH = [1.0, 0.6, 0.45, 0.30];
+      // Peak ceiling — if the fast envelope exceeds this we drag gain down
+      // hard so a yell can never blow the headset.
+      const PEAK_CEILING_BY_STRENGTH = [0.95, 0.55, 0.42, 0.32];
+
+      const TARGET = TARGET_BY_STRENGTH[autoLevelStrength] || 0.22;
+      const maxG = MAX_GAIN_BY_STRENGTH[autoLevelStrength] || 10.0;
+      const minG = MIN_GAIN_BY_STRENGTH[autoLevelStrength] || 0.45;
+      const peakCeil = PEAK_CEILING_BY_STRENGTH[autoLevelStrength] || 0.42;
+
       let agcTarget = 1;
-      if (autoLevelOn && expanderGain > 0.25 && envSmooth > 0.005) {
-        agcTarget = TARGET / Math.max(0.005, envSmooth);
-        if (agcTarget > maxG) agcTarget = maxG;
-        if (agcTarget < minG) agcTarget = minG;
+      if (autoLevelOn && autoLevelStrength > 0 && expanderGain > 0.25) {
+        // Upward target chases the slow envelope.
+        const slowRef = Math.max(0.004, envSlow);
+        let upTarget = TARGET / slowRef;
+        if (upTarget > maxG) upTarget = maxG;
+        // Downward override: if fast envelope * current gain would exceed
+        // the peak ceiling, compute a lower target so the next sample
+        // lands at-or-below the ceiling. This is the "loud speaker grab."
+        const projected = envFast * Math.max(0.05, agcGain);
+        if (projected > peakCeil) {
+          const downTarget = peakCeil / Math.max(0.005, envFast);
+          // Pick whichever is lower so a loud speaker dominates a quiet one.
+          upTarget = Math.min(upTarget, downTarget);
+        }
+        if (upTarget < minG) upTarget = minG;
+        if (upTarget > maxG) upTarget = maxG;
+        agcTarget = upTarget;
+      } else if (!autoLevelOn || autoLevelStrength === 0) {
+        agcTarget = 1;
       } else {
-        // Off / very quiet: glide toward unity instead of holding stale gain.
+        // Below expander floor: glide toward unity, don't pump.
         agcTarget = 1;
       }
-      const ac = agcTarget > agcGain ? AGC_ATTACK : AGC_RELEASE;
+      const ac = agcTarget > agcGain ? AGC_GAIN_UP : AGC_GAIN_DOWN;
       agcGain += (agcTarget - agcGain) * ac;
+      // Hard safety clamp.
+      if (agcGain < 0.05) agcGain = 0.05;
+      if (agcGain > maxG) agcGain = maxG;
       try {
-        nodes.agc.gain.setTargetAtTime(agcGain, audioCtx.currentTime, 0.03);
+        nodes.agc.gain.setTargetAtTime(agcGain, audioCtx.currentTime, 0.025);
       } catch (_) {}
 
       // ---- 4) Self-voice ducking (best-effort) ----
-      // Trigger requires:
+      // v6: looser "either loud OR centroid match" gating, but require near
+      // field. Depth deepened so the ducks are actually audible.
+      // Trigger requires (all):
       //   (a) feature trained + on
-      //   (b) input is loud enough to be near-mic (≥ ~70% of profile peak)
-      //   (c) spectral centroid roughly matches profile (within 1.4 std)
-      // Duck depth scales with strength.
+      //   (b) fast envelope is above a near-field threshold (loud + close)
+      //   (c) EITHER fast envelope >= ~0.65 of profile peak,
+      //       OR spectral centroid is within tolerance of profile
       let duckTarget = 1;
       if (selfVoice.on && selfVoice.trained && selfVoice.profile) {
         nodes.spectrum.getByteFrequencyData(freqBuf);
@@ -1693,15 +1813,17 @@
         }
         const centroid = den > 0 ? num / den : 0;
         const prof = selfVoice.profile;
-        const loud = envSmooth >= prof.rmsMean * 0.85;
-        const veryLoud = envSmooth >= prof.rmsPeak * 0.55;
+        // Near-field: must be at least ~70% of the user's training mean RMS
+        // *and* above an absolute floor so quiet far talkers can't trip it.
+        const nearField = envFast >= Math.max(0.04, prof.rmsMean * 0.7);
+        const veryLoud = envFast >= prof.rmsPeak * 0.55;
         const spectralOk = centroid > 0 && Math.abs(centroid - prof.centroidMean) <
-          Math.max(450, 1.4 * (prof.centroidStd || 250));
-        const matches = loud && spectralOk && veryLoud;
+          Math.max(500, 1.6 * (prof.centroidStd || 280));
+        const matches = nearField && (veryLoud || spectralOk);
         if (matches) {
-          // Strength 1=-4 dB, 2=-8 dB, 3=-14 dB.
-          const depthByStrength = [0, -4, -8, -14];
-          const dB = depthByStrength[selfVoice.strength] || -8;
+          // v6 depths: Light -6, Medium -12, Strong -20 dB.
+          const depthByStrength = [0, -6, -12, -20];
+          const dB = depthByStrength[selfVoice.strength] || -12;
           duckTarget = Math.pow(10, dB / 20);
         } else {
           duckTarget = 1;
@@ -1746,8 +1868,10 @@
   async function trainSelfVoice() {
     if (selfVoice.training) return;
     selfVoice.training = true;
+    selfVoice.cancelRequested = false;
     if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'training');
     if (ui.trainSelfVoiceBtn) ui.trainSelfVoiceBtn.disabled = true;
+    if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '0%';
     updateSelfVoiceLabels();
 
     let tempStream = null;
@@ -1792,18 +1916,23 @@
         src.connect(spectrumNode);
       }
 
-      // Countdown so the user knows when to start speaking.
+      // v6: 3-second countdown so the user can prepare; the prompt is
+      // longer than v5 and clearly states "keep speaking until the timer
+      // ends". The Train button doubles as a Stop control during recording.
       for (let n = 3; n >= 1; n--) {
+        if (selfVoice.cancelRequested) throw new Error('Training cancelled');
         if (ui.selfVoiceStatus) {
           ui.selfVoiceStatus.textContent = 'Get ready\u2026 ' + n;
           ui.selfVoiceStatus.setAttribute('data-state', 'working');
         }
-        await new Promise((r) => setTimeout(r, 600));
+        await new Promise((r) => setTimeout(r, 700));
       }
-      if (ui.selfVoiceStatus) {
-        ui.selfVoiceStatus.textContent = 'Speak now: \u201CThe quick brown fox jumps over the lazy dog.\u201D';
-        ui.selfVoiceStatus.setAttribute('data-state', 'working');
+      if (ui.trainSelfVoiceBtn) {
+        ui.trainSelfVoiceBtn.disabled = false;
+        ui.trainSelfVoiceBtn.textContent = 'Stop early';
+        ui.trainSelfVoiceBtn.setAttribute('data-state', 'recording');
       }
+      if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'recording');
 
       const tBuf = new Float32Array(analyser.fftSize);
       const fBins = spectrumNode.frequencyBinCount;
@@ -1812,8 +1941,23 @@
       const rmsSamples = [];
       const centroidSamples = [];
       const startMs = performance.now();
-      const totalMs = 3000;
+      // v6: 8-second window. Long enough to read the new prompt fully even at
+      // a relaxed pace, with a Stop-early control if the user finishes sooner.
+      const totalMs = 8000;
+      const minStopMs = 2500; // require at least 2.5 s of audio before allowing early stop
       while (performance.now() - startMs < totalMs) {
+        const elapsed = performance.now() - startMs;
+        const remaining = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+        if (ui.selfVoiceStatus) {
+          ui.selfVoiceStatus.textContent =
+            'Keep speaking\u2026 ' + remaining + 's left';
+          ui.selfVoiceStatus.setAttribute('data-state', 'working');
+        }
+        // Drive the visible progress bar if present.
+        if (ui.selfVoiceProgress) {
+          const pct = Math.min(100, (elapsed / totalMs) * 100);
+          ui.selfVoiceProgress.style.width = pct.toFixed(1) + '%';
+        }
         analyser.getFloatTimeDomainData(tBuf);
         let sumSq = 0;
         for (let i = 0; i < tBuf.length; i++) sumSq += tBuf[i] * tBuf[i];
@@ -1831,9 +1975,11 @@
         }
         if (den > 0) centroidSamples.push(num / den);
         await new Promise((r) => setTimeout(r, 50));
+        if (selfVoice.cancelRequested && elapsed >= minStopMs) break;
       }
+      if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '100%';
 
-      if (rmsSamples.length < 6 || centroidSamples.length < 6) {
+      if (rmsSamples.length < 12 || centroidSamples.length < 12) {
         throw new Error('Not enough voice detected. Try again, a little louder.');
       }
 
@@ -1874,10 +2020,16 @@
       }
     } finally {
       selfVoice.training = false;
+      selfVoice.cancelRequested = false;
       if (ui.selfVoiceControl) ui.selfVoiceControl.removeAttribute('data-self-voice');
       if (ui.trainSelfVoiceBtn) {
         ui.trainSelfVoiceBtn.disabled = false;
+        ui.trainSelfVoiceBtn.removeAttribute('data-state');
         ui.trainSelfVoiceBtn.textContent = selfVoice.trained ? 'Retrain my voice' : 'Train my voice';
+      }
+      if (ui.selfVoiceProgress) {
+        // Briefly hold at 100% on success, then collapse.
+        setTimeout(() => { if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '0%'; }, 900);
       }
       if (!usingExisting) {
         try { if (tempStream) tempStream.getTracks().forEach((t) => t.stop()); } catch (_) {}

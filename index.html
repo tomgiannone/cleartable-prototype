@@ -255,11 +255,11 @@
             <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
           </span>
         </div>
-        <p class="control__hint">Quieter, farther voices come up; loud nearby voices get held back. A built-in limiter prevents harsh clipping.</p>
+        <p class="control__hint">Quieter, farther voices come up; loud nearby voices get held back to a steady listening level. A built-in limiter prevents harsh clipping. <strong>Strong</strong> is recommended for restaurants.</p>
         <div class="control__sub">
           <label for="autoLevelStrength" class="control__sub-label">Strength</label>
-          <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="2" data-testid="slider-auto-level" aria-label="Auto level strength" />
-          <span class="control__val control__val--small" id="autoLevelStatus" data-testid="status-auto-level">On · Medium</span>
+          <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-auto-level" aria-label="Auto level strength" />
+          <span class="control__val control__val--small" id="autoLevelStatus" data-testid="status-auto-level">On · Strong</span>
         </div>
       </div>
 
@@ -272,15 +272,23 @@
             <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
           </span>
         </div>
-        <p class="control__hint">Best-effort: ducks audio when very loud, near-mic speech matches your voice profile. Train it once, then turn it on. <strong>Honest limit:</strong> a web prototype cannot truly remove a single speaker; a native ML implementation would do better.</p>
+        <p class="control__hint">Best-effort: ducks the headset when very loud, near-mic speech matches your voice profile. Train once, then turn it on.</p>
+        <p class="control__hint control__hint--limit"><strong>Honest limit:</strong> this is a web prototype. It cannot truly subtract one speaker from a single microphone the way a native on-device ML model could. Expect partial reduction, occasional false trips on similar voices, and short dips when you talk.</p>
         <div class="control__row">
           <button type="button" class="btn btn--step" id="trainSelfVoiceBtn" data-testid="button-train-self-voice">Train my voice</button>
           <span class="control__val control__val--small" id="selfVoiceStatus" data-testid="status-self-voice">Not trained</span>
         </div>
+        <p class="selfvoice__prompt" id="selfVoicePrompt" data-testid="text-self-voice-prompt">
+          When recording starts, read this aloud at a normal voice and <strong>keep speaking until the timer ends</strong> (about 8 seconds):<br />
+          <em>“This is my voice. Please reduce my voice while I listen to the table.”</em>
+        </p>
+        <div class="selfvoice__progress" data-testid="progress-self-voice" aria-hidden="true">
+          <div class="selfvoice__progress-fill" id="selfVoiceProgress"></div>
+        </div>
         <div class="control__sub">
           <label for="selfVoiceStrength" class="control__sub-label">Strength</label>
-          <input id="selfVoiceStrength" type="range" min="0" max="3" step="1" value="2" data-testid="slider-self-voice" aria-label="Reduce my voice strength" />
-          <span class="control__val control__val--small" id="selfVoiceStrengthVal" data-testid="text-self-voice-strength">Medium</span>
+          <input id="selfVoiceStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-self-voice" aria-label="Reduce my voice strength" />
+          <span class="control__val control__val--small" id="selfVoiceStrengthVal" data-testid="text-self-voice-strength">Strong</span>
         </div>
       </div>
     </section>
@@ -391,15 +399,17 @@
 
         <details class="help" data-testid="details-auto-level">
           <summary><span class="help__title">Auto level voices</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>This is a smooth automatic gain control (AGC) plus a downward expander. It scales each voice toward a comfortable listening level, so quiet people across the table come up and loud people next to you don't blast. A soft limiter holds peaks back to protect your hearing and the headset.</p>
-          <p>Strength <strong>Off</strong> uses a manual makeup gain only. Strength <strong>Low / Medium / High</strong> applies progressively more leveling and a slower release for a more natural sound.</p>
+          <p>Two stages working together: a real-time voice-band leveler that flattens loud peaks at the audio thread, and a slower automatic gain control (AGC) that lifts quieter, farther voices toward a steady listening level. A soft limiter behind both holds final peaks back to protect your hearing and the headset.</p>
+          <p>Strength <strong>Off</strong> applies only a transparent peak compressor and your manual Volume Boost. <strong>Light</strong> nudges levels gently. <strong>Medium</strong> behaves like a broadcast leveler. <strong>Strong</strong> (the default) is tuned for restaurant tables — it lifts farther voices substantially and pins louder near voices to roughly the same output level. The trade-off at <strong>Strong</strong> is that during quiet moments you may hear the room come up; that is the AGC making the most of every voice.</p>
+          <p>If a particular speaker still sounds too loud, the cause is usually that they are <em>much</em> closer to the phone than the others; try moving the phone slightly farther from them, or stepping the strength back to <strong>Medium</strong>.</p>
         </details>
 
         <details class="help" data-testid="details-self-voice">
           <summary><span class="help__title">Reduce my voice (best-effort)</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>Tap <em>Train my voice</em>, then read the prompt aloud at a normal volume for ~3 seconds. ClearTable measures your average loudness and a rough spectral fingerprint and stores it on this device only.</p>
-          <p>When the toggle is on, the app ducks the output (lowers volume briefly) when it detects very loud, near-mic speech that broadly matches your profile. It eases back up after you stop talking.</p>
-          <p><strong>Honest limits:</strong> this is not voiceprint-based speaker separation. A web page cannot truly subtract one speaker from a single mic. Expect partial reduction, occasional false trips on similar voices, and momentary dips when you talk. A native app with on-device ML (e.g. RNNoise / personal voice activity detection) would do this much better.</p>
+          <p>Tap <em>Train my voice</em>, wait for the 3-second countdown, then read the prompt aloud at a normal voice and <strong>keep speaking until the timer ends</strong> (about 8 seconds). The button changes to <em>Stop early</em> if you finish sooner. ClearTable stores your average loudness and a rough spectral fingerprint on this device only — nothing is uploaded.</p>
+          <p>When the toggle is on, the app ducks the headset audio when it detects very loud, near-mic speech that broadly matches your profile. It eases back up after you stop talking.</p>
+          <p>Use <em>Retrain my voice</em> any time the room or your headset position changes a lot — a fresh profile is more reliable. The status next to the button tells you whether a profile is ready.</p>
+          <p><strong>Honest limits:</strong> this is <em>not</em> voiceprint-based speaker separation. A web page cannot truly subtract one speaker from a single microphone. Expect partial reduction, occasional false trips on voices in your range, and momentary dips when you talk. A native iOS app with on-device ML (RNNoise / personal voice activity detection) would do this much better — the web platform does not have those primitives yet.</p>
         </details>
 
         <details class="help help--advanced" data-testid="details-advanced">

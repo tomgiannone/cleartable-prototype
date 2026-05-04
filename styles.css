@@ -1048,3 +1048,54 @@ input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offs
 
 /* Make sure the new toggles do not visually drift on iOS */
 .control__switch.awake__switch { width: 38px; height: 22px; }
+
+/* ===== v6: Reduce my voice — training prompt + progress ===== */
+.selfvoice__prompt {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim, #b9c2cf);
+  background: rgba(105, 214, 197, 0.05);
+  border: 1px solid rgba(105, 214, 197, 0.18);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0 6px;
+}
+.selfvoice__prompt em {
+  display: block;
+  margin-top: 6px;
+  color: #e6efea;
+  font-style: italic;
+}
+.selfvoice__progress {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  margin: 4px 0 8px;
+}
+.selfvoice__progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent, #69d6c5), var(--accent-strong, #8be0d3));
+  border-radius: 3px;
+  transition: width 0.12s linear;
+}
+.control[data-self-voice="recording"] .selfvoice__prompt {
+  border-color: rgba(105, 214, 197, 0.55);
+  background: rgba(105, 214, 197, 0.10);
+}
+.control[data-self-voice="recording"] .control__row .btn--step[data-state="recording"] {
+  background: var(--accent-strong, #8be0d3);
+  color: #0e1726;
+  border-color: var(--accent-strong, #8be0d3);
+  animation: ct-cal-pulse 1.2s ease-in-out infinite;
+}
+
+/* "Honest limit" sub-hint differentiated visually from the primary hint */
+.control__hint--limit {
+  font-size: 12px;
+  color: var(--text-faint, #8ea0b3);
+  margin-top: -4px;
+}
