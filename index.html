@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0e1726" />
+  <meta name="description" content="ClearTable — a simple, mobile-first assistive listening prototype for noisy rooms. All audio is processed on your phone." />
+  <meta property="og:title" content="ClearTable — assistive listening" />
+  <meta property="og:description" content="Place your phone on the table. Listen through your headset. ClearTable boosts nearby voices and quiets the room." />
+  <title>ClearTable — assistive listening</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230e1726'/><g fill='none' stroke='%2369d6c5' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'><path d='M22 44 C16 38 16 28 22 22 C28 16 38 16 42 22 C45 26 44 32 40 34 C36 36 34 38 34 42 C34 46 30 48 27 46'/><circle cx='30' cy='30' r='3.5' fill='%2369d6c5' stroke='none'/></g></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230e1726'/><g fill='none' stroke='%2369d6c5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 22 C7.5 19 7.5 13 11 10 C14.5 7 20 7 22.5 10 C24.5 12.5 24 16 21.5 17.5 C19 19 18 20 18 22 C18 24 16 25 14.5 24'/><circle cx='15.5' cy='14.5' r='1.6' fill='%2369d6c5' stroke='none'/></g></svg>" />
+</head>
+<body>
+  <!-- ===== Setup / Onboarding screen ===== -->
+  <section class="screen screen--setup is-active" id="screenSetup" data-testid="screen-setup" aria-labelledby="setup-title">
+    <div class="setup-wrap">
+      <div class="brand brand--big" aria-label="ClearTable">
+        <span class="brand__mark" aria-hidden="true">
+          <!-- Ear / cochlea-inspired mark -->
+          <svg viewBox="0 0 48 48" width="44" height="44" role="img" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
+              <circle cx="22.5" cy="22" r="2.4" fill="currentColor" stroke="none"/>
+            </g>
+          </svg>
+        </span>
+        <span class="brand__name">ClearTable</span>
+      </div>
+
+      <h1 id="setup-title" class="setup__title">Get ready in 3 steps</h1>
+      <p class="setup__sub">A quick setup so you hear voices clearly at the table.</p>
+
+      <ol class="steps" data-testid="list-setup">
+        <li class="step" id="setupStepPair" data-testid="setup-step-pair" data-state="pending">
+          <span class="step__num" aria-hidden="true">
+            <span class="step__num-text">1</span>
+            <svg class="step__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <div class="step__body">
+            <div class="step__title">Pair your headset</div>
+            <div class="step__desc">Connect your earbuds or hearing aids in <strong>iOS Settings → Bluetooth</strong>. Tap below once they're paired.</div>
+            <div class="step__actions">
+              <button type="button" class="btn btn--step" id="pairConfirmBtn" data-testid="button-confirm-pair">Headset is paired</button>
+              <span class="step__status" id="pairStatus" data-testid="status-pair" aria-live="polite">Not confirmed</span>
+            </div>
+          </div>
+        </li>
+        <li class="step" id="setupStepMic" data-testid="setup-step-mic" data-state="pending">
+          <span class="step__num" aria-hidden="true">
+            <span class="step__num-text">2</span>
+            <svg class="step__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <div class="step__body">
+            <div class="step__title">Allow microphone</div>
+            <div class="step__desc">Tap below — Safari will ask for permission. Tap <strong>Allow</strong>.</div>
+            <div class="step__actions">
+              <button type="button" class="btn btn--step btn--step-primary" id="checkMicBtn" data-testid="button-check-mic">Allow microphone</button>
+              <span class="step__status" id="micStatus" data-testid="status-mic-permission" aria-live="polite">Not granted</span>
+            </div>
+            <div class="step__troubleshoot" id="micTroubleshoot" data-testid="text-mic-troubleshoot" hidden>
+              <p class="step__trouble-title">Trouble with the mic?</p>
+              <ul class="step__trouble-list">
+                <li>Open this page in <strong>Safari</strong> directly — not from inside an app's browser (e.g. Messages, Mail, Slack).</li>
+                <li>Make sure the URL is <strong>https://</strong>.</li>
+                <li>If you previously denied: <strong>Settings → Safari → Microphone</strong> (or <strong>Settings → Safari → Advanced → Website Data / Settings for Websites</strong>) and allow this site.</li>
+                <li>Disable <strong>Low Power Mode</strong> and close other apps that may be using the mic (calls, voice notes).</li>
+                <li>Then tap <em>Allow microphone</em> again.</li>
+              </ul>
+            </div>
+          </div>
+        </li>
+        <li class="step" id="setupStepPlace" data-testid="setup-step-place" data-state="pending">
+          <span class="step__num" aria-hidden="true">
+            <span class="step__num-text">3</span>
+            <svg class="step__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <div class="step__body">
+            <div class="step__title">Place phone on the table</div>
+            <div class="step__desc">Lay it face-up near the middle, away from cutlery.</div>
+            <div class="step__actions">
+              <button type="button" class="btn btn--step" id="placeConfirmBtn" data-testid="button-confirm-place">Phone is on the table</button>
+              <span class="step__status" id="placeStatus" data-testid="status-place" aria-live="polite">Not confirmed</span>
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <button type="button" class="btn btn--primary btn--xl btn--continue is-secondary" id="continueBtn" data-testid="button-continue" aria-disabled="true">
+        I'm ready
+      </button>
+      <p class="setup__note" id="continueNote" data-testid="text-continue-note">Allow the microphone above, or skip — Start Listening will ask again.</p>
+
+      <button type="button" class="link-btn" id="skipSetupBtn" data-testid="button-skip-setup">
+        Skip for now
+      </button>
+      <button type="button" class="link-btn" id="setupHelpBtn" data-testid="button-setup-help">
+        Privacy &amp; what this is
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== Main listening screen ===== -->
+  <section class="screen screen--main" id="screenMain" data-testid="screen-main" aria-labelledby="main-title" hidden>
+    <header class="topbar">
+      <div class="brand brand--small" aria-label="ClearTable">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="22" height="22" role="img" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
+              <circle cx="22.5" cy="22" r="2.6" fill="currentColor" stroke="none"/>
+            </g>
+          </svg>
+        </span>
+        <span class="brand__name">ClearTable</span>
+      </div>
+      <div class="topbar__actions">
+        <button type="button" class="icon-btn" id="infoBtn" data-testid="button-info" aria-label="Info, help, and privacy">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <h1 id="main-title" class="visually-hidden">ClearTable listening</h1>
+
+    <div class="stage">
+      <div class="status" id="status" data-testid="status-monitor" aria-live="polite">Tap to start</div>
+
+      <button id="toggle" class="bigbtn" data-testid="button-toggle" aria-pressed="false" aria-label="Start Listening">
+        <span class="bigbtn__ring" aria-hidden="true"></span>
+        <span class="bigbtn__ring bigbtn__ring--2" aria-hidden="true"></span>
+        <span class="bigbtn__core">
+          <svg class="bigbtn__icon bigbtn__icon--play" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="3" width="6" height="12" rx="3"/>
+            <path d="M5.5 11a6.5 6.5 0 0 0 13 0"/>
+            <line x1="12" y1="17.5" x2="12" y2="21"/>
+          </svg>
+          <svg class="bigbtn__icon bigbtn__icon--stop" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor" stroke="none"/>
+          </svg>
+          <span class="bigbtn__label" id="toggleLabel">Start Listening</span>
+        </span>
+      </button>
+
+      <div class="meter" aria-label="Microphone input level">
+        <div class="meter__track">
+          <div class="meter__fill" id="meter" data-testid="meter-input"></div>
+        </div>
+      </div>
+
+      <p class="warn" id="clipWarn" data-testid="warning-clipping" hidden>Sound is too loud — try lowering Volume Boost.</p>
+      <p class="warn warn--safety" id="safetyWarn" data-testid="warning-safety" hidden>Output is loud. Lower the volume to protect your hearing.</p>
+    </div>
+
+    <section class="controls" aria-label="Sound controls">
+      <div class="control" data-testid="control-volume">
+        <div class="control__head">
+          <label for="gain">Volume Boost</label>
+          <span class="control__val" id="gainVal" data-testid="text-gain-value">+6 dB</span>
+        </div>
+        <input id="gain" type="range" min="0" max="18" step="1" value="6" data-testid="slider-gain" aria-label="Volume Boost" />
+      </div>
+
+      <div class="control" data-testid="control-noise">
+        <div class="control__head">
+          <label for="gate">Noise Reduction</label>
+          <span class="control__val" id="gateVal" data-testid="text-gate-value">−55 dB</span>
+        </div>
+        <input id="gate" type="range" min="-80" max="-20" step="1" value="-55" data-testid="slider-gate" aria-label="Background Noise Reduction" />
+      </div>
+
+      <div class="control" data-testid="control-clarity">
+        <div class="control__head">
+          <label for="clarity">Voice Clarity</label>
+          <span class="control__val" id="clarityVal" data-testid="text-clarity-value">Balanced</span>
+        </div>
+        <input id="clarity" type="range" min="0" max="3" step="1" value="1" data-testid="slider-clarity" aria-label="Voice Clarity" />
+        <!-- hidden select kept for legacy data binding; values map from clarity slider -->
+        <select id="preset" data-testid="select-preset" class="visually-hidden" aria-hidden="true" tabindex="-1">
+          <option value="warm">Warmer</option>
+          <option value="balanced" selected>Balanced</option>
+          <option value="bright">Brighter</option>
+          <option value="aggressive">Strong</option>
+        </select>
+      </div>
+    </section>
+
+    <div class="footer-actions">
+      <button type="button" class="link-btn link-btn--quiet" id="backToSetupBtn" data-testid="button-back-to-setup">
+        Back to setup
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== Info / Help sheet ===== -->
+  <div class="sheet" id="sheet" data-testid="sheet-info" hidden aria-hidden="true">
+    <div class="sheet__scrim" id="sheetScrim" data-testid="sheet-scrim"></div>
+    <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet__handle" aria-hidden="true"></div>
+      <div class="sheet__head">
+        <h2 id="sheet-title">About ClearTable</h2>
+        <button type="button" class="icon-btn" id="sheetClose" data-testid="button-sheet-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="sheet__body">
+        <details class="help" data-testid="details-privacy" open>
+          <summary><span class="help__title">Privacy</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>Audio is processed <strong>only on this phone</strong>. Nothing is recorded, saved, or sent anywhere. Tap <em>Stop</em> or close the tab and the microphone is released.</p>
+        </details>
+
+        <details class="help" data-testid="details-tips">
+          <summary><span class="help__title">Tips for restaurants</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <ul class="help__list">
+            <li>Place the phone <strong>face-up</strong> near the center of the table.</li>
+            <li>Keep it away from clinking glassware and cutlery.</li>
+            <li>If you don't hear anything, swipe into <strong>Control Center</strong>, long-press the audio tile, and pick your headset.</li>
+            <li>Keep Safari in the foreground — iOS may pause audio if you switch apps.</li>
+          </ul>
+        </details>
+
+        <details class="help" data-testid="details-troubleshoot">
+          <summary><span class="help__title">Sound isn't right</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <ul class="help__list">
+            <li><strong>No sound?</strong> Check your headset is connected, then re-route via Control Center.</li>
+            <li><strong>Tinny / call-quality sound?</strong> Some Bluetooth headsets switch to a low-quality call mode when the mic is on.</li>
+            <li><strong>Choppy audio?</strong> Lower Noise Reduction one notch.</li>
+            <li><strong>Harsh or clipping?</strong> Lower Volume Boost.</li>
+          </ul>
+        </details>
+
+        <details class="help" data-testid="details-limits">
+          <summary><span class="help__title">What it can and can't do</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <ul class="help__list">
+            <li>Expect <strong>150–400 ms</strong> delay through Bluetooth — lip movement leads the sound.</li>
+            <li>Best for <strong>steady background noise</strong> and one or two nearby talkers.</li>
+            <li>Single-microphone classical EQ + dynamics. No AI denoiser, no beamforming.</li>
+            <li><span class="latency" id="latency" data-testid="status-latency">Engine latency: —</span></li>
+          </ul>
+        </details>
+
+        <details class="help help--notice" data-testid="details-notice">
+          <summary><span class="help__title">Not a medical device</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>ClearTable is an <strong>experimental assistive listening prototype</strong>. It is <strong>not a hearing aid</strong> and does not diagnose, treat, or cure any condition. If you have hearing concerns, please see an audiologist. Use comfortable volumes only.</p>
+        </details>
+
+        <button type="button" class="btn btn--ghost btn--reset" id="resetBtn" data-testid="button-reset">Reset to recommended</button>
+        <p class="foot">ClearTable prototype · runs entirely in your browser</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
