@@ -144,8 +144,26 @@
         <span class="awake__status" id="awakeStatus" data-testid="status-wake-lock" aria-live="polite">Off</span>
       </div>
       <p class="warn warn--awake" id="awakeWarn" data-testid="warning-wake-lock" hidden>
-        Your phone may dim and pause sound. To stay awake, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you use ClearTable.
+        Your phone may dim and pause sound. If the screen still locks, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you use ClearTable.
       </p>
+
+      <!-- Microphone source picker -->
+      <div class="micsrc" id="micSource" data-testid="control-mic-source">
+        <div class="micsrc__row">
+          <span class="micsrc__label">Active microphone</span>
+          <span class="micsrc__status" id="activeMicStatus" data-testid="status-active-mic" aria-live="polite">—</span>
+        </div>
+        <div class="micsrc__pick">
+          <label class="visually-hidden" for="micSourceSelect">Choose microphone source</label>
+          <select id="micSourceSelect" data-testid="select-mic-source" class="micsrc__select" disabled>
+            <option value="">Default microphone</option>
+          </select>
+          <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtn" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
+        </div>
+        <p class="warn warn--mic" id="micSourceWarn" data-testid="warning-mic-source" hidden>
+          A Bluetooth headset microphone is being used. iOS may force the headset mic when a headset is connected, which can sound thin and pick up your own voice. Try selecting an iPhone microphone above. If only the headset is offered, this is a web limitation — a native iOS app is needed for reliable phone-mic-to-headset routing.
+        </p>
+      </div>
 
       <button id="toggle" class="bigbtn" data-testid="button-toggle" aria-pressed="false" aria-label="Start Listening">
         <span class="bigbtn__ring" aria-hidden="true"></span>
@@ -259,8 +277,14 @@
 
         <details class="help" data-testid="details-keep-awake">
           <summary><span class="help__title">Keep your phone awake</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>iPhones dim and lock after a short idle period, which can pause Safari and cut off the sound. ClearTable asks the browser to <strong>keep the screen awake</strong> while you're listening, using a small toggle near the status above.</p>
-          <p>If your browser doesn't support that, or you turn it off, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you're at the table, then change it back afterward. Keeping Safari in the foreground also helps.</p>
+          <p>iPhones dim and lock after a short idle period, which can pause Safari and cut off the sound. ClearTable asks the browser to <strong>keep the screen awake</strong> while you're listening, using a small toggle near the status above. It also runs a tiny invisible looping video as a backup — a trick that helps on older iOS or in Low Power Mode.</p>
+          <p>If the screen still locks, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you're at the table, then change it back afterward. Disable <strong>Low Power Mode</strong> and keep Safari in the foreground.</p>
+        </details>
+
+        <details class="help" data-testid="details-mic-source">
+          <summary><span class="help__title">Microphone source</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>For best results we want the <strong>iPhone</strong>'s built-in microphone, with audio playing through your <strong>headset</strong>. Below the status you can see the active microphone and pick a different one if the browser offers more than one.</p>
+          <p><strong>Web limitation:</strong> When a Bluetooth headset is connected, iOS Safari often forces the <strong>headset's microphone</strong> regardless of which device you select. This sounds thin and picks up your own voice, not the table. There is no reliable web workaround — a native iOS app is required to keep audio output on the headset while capturing from the iPhone mic.</p>
         </details>
 
         <details class="help" data-testid="details-tips">
@@ -303,6 +327,15 @@
       </div>
     </div>
   </div>
+
+  <!-- NoSleep-style hidden video fallback for iOS Safari, where Wake Lock
+       is not honoured in Low Power Mode or older iOS versions. We start a
+       muted, looping, inline tiny video from the Start-Listening user gesture
+       and rely on AVAudioSession-style activity to defer auto-lock. -->
+  <video id="nosleepVideo" data-testid="video-nosleep"
+         playsinline muted loop disablepictureinpicture preload="auto"
+         aria-hidden="true" tabindex="-1"
+         style="position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;"></video>
 
   <script src="app.js" defer></script>
 </body>

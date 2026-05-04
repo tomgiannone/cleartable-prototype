@@ -76,6 +76,14 @@
     awakeToggle: $('awakeToggle'),
     awakeStatus: $('awakeStatus'),
     awakeWarn: $('awakeWarn'),
+    nosleepVideo: $('nosleepVideo'),
+
+    // Mic source
+    micSource: $('micSource'),
+    micSourceSelect: $('micSourceSelect'),
+    refreshMicsBtn: $('refreshMicsBtn'),
+    activeMicStatus: $('activeMicStatus'),
+    micSourceWarn: $('micSourceWarn'),
 
     // Transcript
     transcriptSection: $('transcriptSection'),
@@ -319,6 +327,8 @@
       ui.checkMicBtn.textContent = 'Microphone allowed';
       hideMicTroubleshoot();
       updateContinueState();
+      // Now that we have permission, labels are available — populate the picker.
+      refreshMicList().catch(() => {});
     } catch (err) {
       console.warn('Mic permission failed:', err);
       micPermissionGranted = false;
@@ -562,12 +572,70 @@
   // ---------- Screen wake lock ----------
   // Tries to keep the iPhone screen awake while listening so Safari
   // doesn't suspend and cut off audio. iOS 16.4+ Safari supports this.
+  // We ALSO run a NoSleep-style silent looping <video> as a fallback for
+  // older iOS, Low Power Mode, or when Wake Lock is silently released.
   const wake = {
     supported: !!(navigator.wakeLock && typeof navigator.wakeLock.request === 'function'),
     sentinel: null,
     enabled: true,        // user wants it on while listening
     deniedOnce: false,    // we tried and got rejected — show fallback
+    videoActive: false,
   };
+
+  // Tiny silent looping MP4 (h264 + aac) — public-domain payload from the
+  // NoSleep.js project, embedded so we have no external dependency.
+  // Source: https://github.com/richtr/NoSleep.js (Apache-2.0). The asset is a
+  // 5-second muted clip in two formats; iOS Safari plays the MP4.
+  const NOSLEEP_MP4 = 'data:video/mp4;base64,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';
+
+  function setNoSleepVideoSrc() {
+    if (!ui.nosleepVideo) return;
+    if (ui.nosleepVideo.dataset.ready === '1') return;
+    try {
+      ui.nosleepVideo.src = NOSLEEP_MP4;
+      ui.nosleepVideo.dataset.ready = '1';
+    } catch (_) {}
+  }
+
+  function startNoSleepVideo() {
+    if (!ui.nosleepVideo) return false;
+    setNoSleepVideoSrc();
+    try {
+      ui.nosleepVideo.muted = true;
+      ui.nosleepVideo.playsInline = true;
+      ui.nosleepVideo.setAttribute('playsinline', '');
+      ui.nosleepVideo.setAttribute('webkit-playsinline', '');
+      const p = ui.nosleepVideo.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          wake.videoActive = true;
+          // Defer the status update so the Wake Lock sentinel (if any)
+          // has time to land first; we don't want to downgrade "On" to
+          // "On (fallback)" when the real API is also working.
+          setTimeout(() => {
+            if (running && wake.enabled && !wake.sentinel) {
+              setAwakeStatus('On (fallback)', 'on');
+              showAwakeWarn(false);
+            }
+          }, 60);
+        }).catch(() => { wake.videoActive = false; });
+      } else {
+        wake.videoActive = true;
+      }
+      return true;
+    } catch (_) {
+      wake.videoActive = false;
+      return false;
+    }
+  }
+
+  function stopNoSleepVideo() {
+    if (!ui.nosleepVideo) return;
+    try { ui.nosleepVideo.pause(); } catch (_) {}
+    try { ui.nosleepVideo.removeAttribute('src'); ui.nosleepVideo.load(); } catch (_) {}
+    ui.nosleepVideo.dataset.ready = '';
+    wake.videoActive = false;
+  }
 
   function setAwakeStatus(text, state) {
     if (!ui.awakeStatus) return;
@@ -582,15 +650,29 @@
   }
 
   async function acquireWakeLock() {
-    if (!wake.supported) {
-      setAwakeStatus('Not supported', 'unsupported');
-      showAwakeWarn(true);
-      return false;
-    }
     if (!wake.enabled) {
+      // Caller turned it off — stop both layers.
+      stopNoSleepVideo();
       setAwakeStatus('Off');
       return false;
     }
+
+    // Always start the NoSleep video fallback (cheap, always works on iOS
+    // when called from a user gesture). It survives Wake Lock release.
+    startNoSleepVideo();
+
+    if (!wake.supported) {
+      // Wake Lock API not present — rely on the video keep-awake.
+      if (wake.videoActive) {
+        setAwakeStatus('On (fallback)', 'on');
+        showAwakeWarn(false);
+      } else {
+        setAwakeStatus('Not supported', 'unsupported');
+        showAwakeWarn(true);
+      }
+      return wake.videoActive;
+    }
+
     if (wake.sentinel) {
       setAwakeStatus('On', 'on');
       return true;
@@ -603,7 +685,8 @@
         // Drop our handle; visibilitychange will try to reacquire if still listening.
         if (wake.sentinel === sentinel) wake.sentinel = null;
         if (running && wake.enabled) {
-          setAwakeStatus('Paused', 'paused');
+          // Sentinel released — fall back to the video keep-awake.
+          setAwakeStatus(wake.videoActive ? 'On (fallback)' : 'Paused', wake.videoActive ? 'on' : 'paused');
         } else {
           setAwakeStatus('Off');
         }
@@ -614,9 +697,15 @@
     } catch (err) {
       console.warn('Wake lock request failed:', err);
       wake.deniedOnce = true;
-      setAwakeStatus('Unavailable', 'error');
-      showAwakeWarn(true);
-      return false;
+      // Still rely on the video fallback if it took.
+      if (wake.videoActive) {
+        setAwakeStatus('On (fallback)', 'on');
+        showAwakeWarn(false);
+      } else {
+        setAwakeStatus('Unavailable', 'error');
+        showAwakeWarn(true);
+      }
+      return wake.videoActive;
     }
   }
 
@@ -626,20 +715,15 @@
     if (s) {
       try { await s.release(); } catch (_) { /* ignore */ }
     }
+    stopNoSleepVideo();
     setAwakeStatus('Off');
   }
 
-  // Initial wake-lock UI state
+  // Initial wake-lock UI state. Even without the Wake Lock API we still
+  // expose the toggle, because the NoSleep video fallback works on iOS.
   if (!wake.supported) {
-    if (ui.awakeToggle) {
-      ui.awakeToggle.checked = false;
-      ui.awakeToggle.disabled = true;
-      ui.awakeToggle.setAttribute('aria-disabled', 'true');
-    }
-    if (ui.awake) ui.awake.setAttribute('data-state', 'unsupported');
-    setAwakeStatus('Not supported', 'unsupported');
-    showAwakeWarn(true);
-    wake.enabled = false;
+    if (ui.awake) ui.awake.setAttribute('data-state', 'fallback');
+    setAwakeStatus('Off (fallback ready)', 'paused');
   } else {
     setAwakeStatus('Off');
   }
@@ -665,6 +749,176 @@
     }
   });
 
+  // ---------- Microphone source picker ----------
+  // We enumerate audioinput devices after permission is granted, present a
+  // dropdown if there are multiple, and warn loudly if the active track looks
+  // like a Bluetooth headset — a known iOS Safari limitation.
+  const micPicker = {
+    selectedId: '',          // chosen deviceId, '' = default
+    devices: [],             // [{deviceId, label, kind, isHeadset, isPhoneMic}]
+    populated: false,
+  };
+
+  const HEADSET_RE = /(airpods|beats|bluetooth|headset|hands?[- ]?free|wireless|bose|sony|jabra|earbuds?|earpods?|pixel buds|galaxy buds|sennheiser|hf\b|sco\b|bt\b)/i;
+  const PHONE_MIC_RE = /(iphone|built[- ]?in|front|back|rear|top|bottom|integrated|internal|default|primary|microphone array|imac|macbook|mac mini|laptop|phone)/i;
+
+  function classifyMic(label) {
+    const l = (label || '').trim();
+    return {
+      isHeadset: !!l && HEADSET_RE.test(l),
+      isPhoneMic: !!l && PHONE_MIC_RE.test(l),
+    };
+  }
+
+  function setActiveMicStatus(text, state) {
+    if (!ui.activeMicStatus) return;
+    ui.activeMicStatus.textContent = text;
+    if (state) ui.activeMicStatus.setAttribute('data-state', state);
+    else ui.activeMicStatus.removeAttribute('data-state');
+  }
+
+  function showMicWarn(show) {
+    if (!ui.micSourceWarn) return;
+    ui.micSourceWarn.hidden = !show;
+  }
+
+  async function refreshMicList(opts) {
+    opts = opts || {};
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+    let devices = [];
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      devices = all.filter((d) => d.kind === 'audioinput').map((d) => {
+        const label = d.label || '';
+        const cls = classifyMic(label);
+        return {
+          deviceId: d.deviceId || '',
+          label: label || (d.deviceId ? ('Microphone ' + d.deviceId.slice(0, 4)) : 'Default microphone'),
+          isHeadset: cls.isHeadset,
+          isPhoneMic: cls.isPhoneMic,
+        };
+      });
+    } catch (err) {
+      console.warn('enumerateDevices failed:', err);
+      return [];
+    }
+
+    micPicker.devices = devices;
+    micPicker.populated = true;
+
+    // Repopulate the <select>.
+    const sel = ui.micSourceSelect;
+    if (sel) {
+      const previous = micPicker.selectedId;
+      sel.innerHTML = '';
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = devices.length ? 'Default microphone' : 'No microphones found';
+      sel.appendChild(defaultOpt);
+      for (const dev of devices) {
+        if (!dev.deviceId) continue; // skip unlabelled "" deviceId duplicates
+        const opt = document.createElement('option');
+        opt.value = dev.deviceId;
+        const tag = dev.isPhoneMic ? ' — phone' : (dev.isHeadset ? ' — headset' : '');
+        opt.textContent = dev.label + tag;
+        sel.appendChild(opt);
+      }
+      // Re-select the previously chosen device if still available.
+      if (previous && devices.some((d) => d.deviceId === previous)) {
+        sel.value = previous;
+      } else {
+        sel.value = '';
+        micPicker.selectedId = '';
+      }
+      // Enable the dropdown only if the user has actual choice.
+      const realCount = devices.filter((d) => d.deviceId).length;
+      sel.disabled = realCount < 2;
+    }
+
+    // Update the active-mic status if we're not currently listening.
+    if (!running) {
+      if (!devices.length) {
+        setActiveMicStatus('No microphone', 'warn');
+      } else {
+        // Try to surface the chosen-or-likely device.
+        const chosen = micPicker.selectedId
+          ? devices.find((d) => d.deviceId === micPicker.selectedId)
+          : (devices.find((d) => d.isPhoneMic) || devices[0]);
+        if (chosen) {
+          setActiveMicStatus(chosen.label, chosen.isHeadset ? 'warn' : (chosen.isPhoneMic ? 'ok' : ''));
+          showMicWarn(!!chosen.isHeadset);
+        }
+      }
+    }
+    return devices;
+  }
+
+  if (ui.micSourceSelect) {
+    ui.micSourceSelect.addEventListener('change', async () => {
+      micPicker.selectedId = ui.micSourceSelect.value || '';
+      // Reflect the choice in the active-mic status while idle.
+      if (!running) {
+        const dev = micPicker.devices.find((d) => d.deviceId === micPicker.selectedId);
+        if (dev) {
+          setActiveMicStatus(dev.label, dev.isHeadset ? 'warn' : (dev.isPhoneMic ? 'ok' : ''));
+          showMicWarn(!!dev.isHeadset);
+        } else {
+          setActiveMicStatus('Default microphone', '');
+          showMicWarn(false);
+        }
+      } else {
+        // Live-swap: restart the audio chain with the new deviceId.
+        try { await restartWithSelectedMic(); } catch (_) {}
+      }
+    });
+  }
+  if (ui.refreshMicsBtn) {
+    ui.refreshMicsBtn.addEventListener('click', () => refreshMicList({ user: true }));
+  }
+
+  async function restartWithSelectedMic() {
+    if (!running) return;
+    stop();
+    await start();
+  }
+
+  function micConstraints() {
+    const base = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      channelCount: 1,
+    };
+    if (micPicker.selectedId) {
+      base.deviceId = { exact: micPicker.selectedId };
+    }
+    return base;
+  }
+
+  function reportActiveMic(track) {
+    if (!track) {
+      setActiveMicStatus('—');
+      showMicWarn(false);
+      return;
+    }
+    const settings = (typeof track.getSettings === 'function') ? track.getSettings() : {};
+    const label = track.label || '';
+    const cls = classifyMic(label);
+    setActiveMicStatus(label || 'Active microphone', cls.isHeadset ? 'warn' : (cls.isPhoneMic ? 'ok' : ''));
+    showMicWarn(!!cls.isHeadset);
+    // If the chosen deviceId did not match what we got, sync the dropdown.
+    if (settings && settings.deviceId && ui.micSourceSelect) {
+      const realId = settings.deviceId;
+      if (micPicker.selectedId && realId !== micPicker.selectedId) {
+        // iOS likely overrode our selection. Reflect reality.
+        if (Array.from(ui.micSourceSelect.options).some((o) => o.value === realId)) {
+          ui.micSourceSelect.value = realId;
+          micPicker.selectedId = realId;
+        }
+      }
+    }
+  }
+
   // ---------- Audio engine ----------
   async function start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -674,15 +928,27 @@
     setStatus(micPermissionGranted ? 'Starting…' : 'Asking for microphone…', '');
     try {
       // Always request a fresh stream when starting — the setup test stream was stopped.
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 1,
-        },
-        video: false,
-      });
+      // Apply the user's selected deviceId if any.
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: micConstraints(),
+          video: false,
+        });
+      } catch (err) {
+        // OverconstrainedError from a stale deviceId: clear it and retry default.
+        const name = err && err.name ? err.name : '';
+        if ((name === 'OverconstrainedError' || name === 'NotFoundError') && micPicker.selectedId) {
+          console.warn('Selected mic unavailable, falling back to default:', err);
+          micPicker.selectedId = '';
+          if (ui.micSourceSelect) ui.micSourceSelect.value = '';
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+            video: false,
+          });
+        } else {
+          throw err;
+        }
+      }
       micPermissionGranted = true;
     } catch (err) {
       micPermissionGranted = false;
@@ -691,10 +957,17 @@
       if (name === 'NotAllowedError' || name === 'SecurityError') msg = 'Permission denied — check Settings → Safari → Microphone';
       else if (name === 'NotFoundError') msg = 'No microphone found';
       else if (name === 'NotReadableError') msg = 'Microphone is in use by another app';
+      else if (name === 'OverconstrainedError') msg = 'That microphone is unavailable — pick another';
       setStatus(msg, 'error');
       console.error(err);
       return;
     }
+
+    // Surface the active mic and warn if it looks like a Bluetooth headset.
+    const audioTrack = stream && stream.getAudioTracks ? stream.getAudioTracks()[0] : null;
+    reportActiveMic(audioTrack);
+    // Refresh the device list now that labels are available (post-permission).
+    refreshMicList().catch(() => {});
 
     const Ctx = window.AudioContext || window.webkitAudioContext;
     audioCtx = new Ctx({ latencyHint: 'interactive' });
@@ -815,6 +1088,10 @@
     ui.clipWarn.hidden = true;
     ui.safetyWarn.hidden = true;
     ui.latency.textContent = 'Engine latency: —';
+    // Clear the active-mic line; warning persists until the device list is
+    // re-evaluated, then refreshMicList resets it.
+    setActiveMicStatus('—');
+    refreshMicList().catch(() => {});
   }
 
   function applyPreset() {
@@ -927,10 +1204,24 @@
           setStepState(ui.stepMic, 'done', ui.micStatus, 'Already allowed');
           if (ui.checkMicBtn) ui.checkMicBtn.textContent = 'Microphone allowed';
           updateContinueState();
+          refreshMicList().catch(() => {});
         }
       }
     } catch (_) { /* permissions API not supported on iOS Safari — ignore */ }
+    // Even without permission, attempt an enumerateDevices pass so the UI
+    // can show "No microphone" or, on platforms that expose anonymous
+    // entries, an initial count.
+    refreshMicList().catch(() => {});
   })();
+
+  // React to OS-level device hot-plug events (BT headset connect/disconnect).
+  if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+    try {
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        refreshMicList().catch(() => {});
+      });
+    } catch (_) {}
+  }
 
   updateContinueState();
 })();
