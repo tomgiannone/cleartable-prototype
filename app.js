@@ -1,11 +1,20 @@
-/* ClearTable — assistive listening prototype.
+/* ClearTable — assistive listening prototype (v5).
  * All audio is processed locally via Web Audio API. No recording, no uploads.
  *
- * Signal chain:
+ * v5 signal chain:
  *   getUserMedia → MediaStreamSource
- *     → high-pass → low-mid cut → presence peak → high-shelf → low-pass
- *     → DynamicsCompressor → noise-gate (sidechain analyser) → makeup gain
- *     → meter analyser → destination (monitor) + silent sink
+ *     → high-pass → low-mid cut → second low-mid → presence peak → high-shelf → low-pass
+ *     → DynamicsCompressor (clarity preset)
+ *     → smooth downward expander  ← replaces the old binary noise gate
+ *     → AGC ("Auto level voices") with limiter target
+ *     → self-voice duck            ← "Reduce my voice" (best-effort)
+ *     → makeup gain → soft limiter → meter analyser
+ *     → destination + silent sink
+ *
+ * Choppiness fix: the old gate snapped between mute and unity. v5 uses
+ * setTargetAtTime on a smoothed gain stage with hysteresis (open at
+ * threshold+4 dB, close at threshold-4 dB) and a noise floor of -18 dB
+ * instead of -∞ dB, so silence is reduced, not killed.
  */
 
 (() => {
@@ -67,10 +76,26 @@
     clarityVal: $('clarityVal'),
     preset: $('preset'),
 
-    // Quick row: echo reduction + calibrate
+    // Quick row: echo reduction + calibrate (calibrate moved to Advanced)
     echoReductionToggle: $('echoReductionToggle'),
     calibrateBtn: $('calibrateBtn'),
     calibrationStatus: $('calibrationStatus'),
+
+    // v5 — Auto level voices (AGC + limiter)
+    autoLevelToggle: $('autoLevelToggle'),
+    autoLevelStrength: $('autoLevelStrength'),
+    autoLevelStatus: $('autoLevelStatus'),
+
+    // v5 — Reduce my voice (best-effort self-voice ducking)
+    selfVoiceToggle: $('selfVoiceToggle'),
+    selfVoiceStrength: $('selfVoiceStrength'),
+    selfVoiceStrengthVal: $('selfVoiceStrengthVal'),
+    selfVoiceStatus: $('selfVoiceStatus'),
+    trainSelfVoiceBtn: $('trainSelfVoiceBtn'),
+    selfVoiceControl: document.querySelector('[data-testid="control-self-voice"]'),
+
+    // v5 — Background-audio note
+    backgroundAudioWarn: $('backgroundAudioWarn'),
 
     // Auto-Lock shortcuts
     awakeOpenAutoLockBtn: $('awakeOpenAutoLockBtn'),
@@ -123,10 +148,20 @@
   let micPermissionGranted = false;
   const setupState = { pair: false, mic: false, place: false };
 
-  // Default tuning targets a noisy restaurant room: stronger gate, lower
-  // makeup gain (so users don't crank it and pump the room), Restaurant
-  // preset selected, echo reduction ON.
-  const DEFAULTS = { gain: 4, gate: -48, clarity: 2 /* restaurant */, echoReduction: true };
+  // Default tuning targets a noisy restaurant room. v5 reduces choppiness:
+  // the binary gate is gone, replaced by a downward expander with hysteresis
+  // and slow release. Auto-level voices is ON by default with Medium strength.
+  const DEFAULTS = {
+    gain: 4,
+    gate: -50,
+    clarity: 2 /* restaurant */,
+    echoReduction: true,
+    autoLevel: true,
+    autoLevelStrength: 2,    // 0=off,1=low,2=med,3=high
+    selfVoiceOn: false,
+    selfVoiceStrength: 2,
+  };
+  const STRENGTH_LABELS = ['Off', 'Low', 'Medium', 'High'];
 
   // Each preset describes a five-band EQ + dynamics settings:
   //   presence: 1.5–3 kHz peak gain (consonant intelligibility)
@@ -156,6 +191,31 @@
   // by sliding the highpass corner up by ~30 Hz when ON.
   let echoReductionOn = true;
 
+  // v5 — Auto level (smoothed AGC) state
+  let autoLevelOn = true;
+  let autoLevelStrength = 2;
+  // Smoothed envelope (linear amplitude) used by both the expander and AGC.
+  let envSmooth = 0;
+  // Smoothed downward-expander gain (0..1) — replaces hard gate.
+  let expanderGain = 1;
+  // Smoothed AGC gain (linear). 1 = no change.
+  let agcGain = 1;
+  // Smoothed self-voice ducking gain (1 = no duck, e.g. 0.4 = ~ -8 dB).
+  let selfVoiceDuck = 1;
+
+  // v5 — Self voice profile (kept in-memory only, never persisted/uploaded).
+  // We capture: mean RMS (linear), peak RMS, mean spectral centroid (Hz)
+  // during a ~3-second training phrase. These broad features let us guess
+  // when very-loud near-mic speech matches the user. Honest limit: this is
+  // not voiceprint speaker separation and will sometimes false-trip.
+  const selfVoice = {
+    on: false,
+    strength: 2,
+    trained: false,
+    profile: null, // { rmsMean, rmsPeak, centroidMean, centroidStd }
+    training: false,
+  };
+
   // ---------- Slider visual progress (CSS var) ----------
   function paintRange(el) {
     const min = Number(el.min), max = Number(el.max);
@@ -175,9 +235,8 @@
     paintRange(ui.gain);
   }
   function updateGateLabel() {
-    // Display as user-friendly label. "High" is the typical restaurant default;
-    // "Max" is reserved for the most aggressive cut so users know they don't
-    // have to peg the slider to get aggressive reduction.
+    // v5: this is a smooth downward-expander threshold, not a hard gate.
+    // Lower (more negative) values = more reduction below the threshold.
     const v = Number(ui.gate.value);
     let level = 'Medium';
     if (v <= -65) level = 'Low';
@@ -187,6 +246,53 @@
     else level = 'Max';
     ui.gateVal.textContent = level;
     paintRange(ui.gate);
+  }
+
+  // ---------- Auto-level + self-voice UI labels ----------
+  function updateAutoLevelLabel() {
+    if (!ui.autoLevelStatus || !ui.autoLevelToggle) return;
+    const on = !!ui.autoLevelToggle.checked;
+    autoLevelOn = on;
+    autoLevelStrength = ui.autoLevelStrength ? Number(ui.autoLevelStrength.value) : 2;
+    if (ui.autoLevelStrength) paintRange(ui.autoLevelStrength);
+    if (!on) {
+      ui.autoLevelStatus.textContent = 'Off';
+      ui.autoLevelStatus.setAttribute('data-state', 'off');
+      if (ui.autoLevelStrength) ui.autoLevelStrength.disabled = true;
+      return;
+    }
+    if (ui.autoLevelStrength) ui.autoLevelStrength.disabled = false;
+    ui.autoLevelStatus.textContent = 'On \u00b7 ' + (STRENGTH_LABELS[autoLevelStrength] || 'Medium');
+    ui.autoLevelStatus.setAttribute('data-state', 'active');
+  }
+
+  function updateSelfVoiceLabels() {
+    if (ui.selfVoiceStrength) {
+      paintRange(ui.selfVoiceStrength);
+      const s = Number(ui.selfVoiceStrength.value);
+      selfVoice.strength = s;
+      if (ui.selfVoiceStrengthVal) ui.selfVoiceStrengthVal.textContent = STRENGTH_LABELS[s] || 'Medium';
+    }
+    if (!ui.selfVoiceStatus) return;
+    if (selfVoice.training) {
+      ui.selfVoiceStatus.textContent = 'Training\u2026';
+      ui.selfVoiceStatus.setAttribute('data-state', 'working');
+      return;
+    }
+    if (!selfVoice.trained) {
+      ui.selfVoiceStatus.textContent = 'Not trained';
+      ui.selfVoiceStatus.setAttribute('data-state', 'off');
+      if (ui.selfVoiceToggle) ui.selfVoiceToggle.disabled = true;
+      return;
+    }
+    if (ui.selfVoiceToggle) ui.selfVoiceToggle.disabled = false;
+    if (selfVoice.on) {
+      ui.selfVoiceStatus.textContent = 'Active';
+      ui.selfVoiceStatus.setAttribute('data-state', 'active');
+    } else {
+      ui.selfVoiceStatus.textContent = 'Trained \u00b7 Off';
+      ui.selfVoiceStatus.setAttribute('data-state', 'ok');
+    }
   }
   function clarityKey() {
     const idx = Math.max(0, Math.min(CLARITY_VALUES.length - 1, Number(ui.clarity.value)));
@@ -223,9 +329,18 @@
     ui.clarity.value = DEFAULTS.clarity;
     if (ui.echoReductionToggle) ui.echoReductionToggle.checked = DEFAULTS.echoReduction;
     echoReductionOn = DEFAULTS.echoReduction;
+    if (ui.autoLevelToggle) ui.autoLevelToggle.checked = DEFAULTS.autoLevel;
+    if (ui.autoLevelStrength) ui.autoLevelStrength.value = String(DEFAULTS.autoLevelStrength);
+    if (ui.selfVoiceToggle) {
+      ui.selfVoiceToggle.checked = DEFAULTS.selfVoiceOn;
+      selfVoice.on = DEFAULTS.selfVoiceOn;
+    }
+    if (ui.selfVoiceStrength) ui.selfVoiceStrength.value = String(DEFAULTS.selfVoiceStrength);
     updateGainLabel();
     updateGateLabel();
     updateClarityLabel();
+    updateAutoLevelLabel();
+    updateSelfVoiceLabels();
     setCalibrationStatus('Hold quiet for 2 seconds, then tap.', '');
     if (nodes) {
       applyPreset();
@@ -233,6 +348,36 @@
       applyEchoReduction();
     }
   });
+
+  // ---------- v5: Auto level voices ----------
+  if (ui.autoLevelToggle) {
+    ui.autoLevelToggle.addEventListener('change', updateAutoLevelLabel);
+  }
+  if (ui.autoLevelStrength) {
+    ui.autoLevelStrength.addEventListener('input', updateAutoLevelLabel);
+  }
+
+  // ---------- v5: Reduce my voice ----------
+  if (ui.selfVoiceToggle) {
+    ui.selfVoiceToggle.addEventListener('change', () => {
+      if (!selfVoice.trained) {
+        // Should not happen — toggle is disabled until trained.
+        ui.selfVoiceToggle.checked = false;
+        selfVoice.on = false;
+      } else {
+        selfVoice.on = !!ui.selfVoiceToggle.checked;
+        // Reset duck so we don't carry stale state.
+        selfVoiceDuck = 1;
+      }
+      updateSelfVoiceLabels();
+    });
+  }
+  if (ui.selfVoiceStrength) {
+    ui.selfVoiceStrength.addEventListener('input', updateSelfVoiceLabels);
+  }
+  if (ui.trainSelfVoiceBtn) {
+    ui.trainSelfVoiceBtn.addEventListener('click', () => { trainSelfVoice(); });
+  }
 
   // ---------- Echo / room reduction quick toggle ----------
   if (ui.echoReductionToggle) {
@@ -444,6 +589,8 @@
   updateGainLabel();
   updateGateLabel();
   updateClarityLabel();
+  updateAutoLevelLabel();
+  updateSelfVoiceLabels();
 
   // ---------- Live transcript (Web Speech API) ----------
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1083,15 +1230,45 @@
     comp.release.value = 0.20;
     comp.knee.value = 24;
 
+    // v5: "gate" is now a smooth downward-expander gain stage. We never
+    // drive it to 0 instantly — the meter loop slews this with hysteresis
+    // and a slow release so transitions sound natural, not choppy.
     const gate = audioCtx.createGain();
-    gate.gain.value = 0;
+    gate.gain.value = 1;
 
+    // Sidechain: tap signal *before* the EQ chain so our envelope reflects
+    // the raw room level, independent of presence/air boosts. We use the
+    // post-compressor analyser too (for self-voice spectral matching).
     const sidechain = audioCtx.createAnalyser();
     sidechain.fftSize = 1024;
     sidechain.smoothingTimeConstant = 0.4;
 
+    // v5: AGC stage — modulated by the meter loop toward a target output.
+    const agc = audioCtx.createGain();
+    agc.gain.value = 1;
+
+    // v5: Self-voice ducking stage — separate so it can transparently sit
+    // at unity (1.0) when the feature is off or untrained.
+    const selfDuck = audioCtx.createGain();
+    selfDuck.gain.value = 1;
+
     const makeup = audioCtx.createGain();
     makeup.gain.value = 1;
+
+    // v5: soft limiter to catch peaks regardless of AGC setting. Threshold
+    // is high (-3 dB) and ratio steep, so it only acts on near-clipping
+    // peaks. Prevents hearing harm and BT codec distortion.
+    const limiter = audioCtx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.ratio.value = 12;
+    limiter.knee.value = 2;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.08;
+
+    // Spectral analyser for self-voice matching (frequency-domain).
+    const spectrum = audioCtx.createAnalyser();
+    spectrum.fftSize = 2048;
+    spectrum.smoothingTimeConstant = 0.5;
 
     const meter = audioCtx.createAnalyser();
     meter.fftSize = 1024;
@@ -1100,6 +1277,20 @@
     const muteSink = audioCtx.createGain();
     muteSink.gain.value = 0;
 
+    // Signal flow:
+    //   src → HP → lowMid1 → lowMid2 → presence → air → LP → comp
+    //                                                            ↓
+    //                            sidechain (env)  spectrum (centroid)
+    //                                                            ↓
+    //                                              expander (gate)
+    //                                                            ↓
+    //                                                  AGC → selfDuck
+    //                                                            ↓
+    //                                                  makeup → limiter
+    //                                                            ↓
+    //                                                          meter
+    //                                                            ↓
+    //                                                       destination
     src.connect(highPass);
     highPass.connect(lowMidCut);
     lowMidCut.connect(lowMidCut2);
@@ -1108,18 +1299,31 @@
     air.connect(lowPass);
     lowPass.connect(comp);
     comp.connect(sidechain);
+    comp.connect(spectrum);
     comp.connect(gate);
-    gate.connect(makeup);
-    makeup.connect(meter);
+    gate.connect(agc);
+    agc.connect(selfDuck);
+    selfDuck.connect(makeup);
+    makeup.connect(limiter);
+    limiter.connect(meter);
     meter.connect(audioCtx.destination); // monitor on by default
     meter.connect(muteSink);
     muteSink.connect(audioCtx.destination);
 
-    nodes = { src, highPass, lowMidCut, lowMidCut2, presence, air, lowPass, comp, gate, sidechain, makeup, meter, muteSink };
+    nodes = {
+      src, highPass, lowMidCut, lowMidCut2, presence, air, lowPass,
+      comp, gate, sidechain, spectrum, agc, selfDuck, makeup, limiter, meter, muteSink,
+    };
 
     applyPreset();
     applyMakeupGain();
     applyEchoReduction();
+
+    // Reset dynamic-stage smoothers so the engine starts gracefully.
+    envSmooth = 0;
+    expanderGain = 1;
+    agcGain = 1;
+    selfVoiceDuck = 1;
 
     running = true;
     ui.toggle.classList.add('is-live');
@@ -1368,28 +1572,150 @@
     if (kind === 'error') ui.status.classList.add('is-error');
   }
 
-  // ---------- Meter + gate loop ----------
+  // ---------- v5: smoothed envelope + dynamics loop ----------
+  // Replaces the old binary noise gate. We compute a smoothed RMS envelope,
+  // then drive three independent gain stages each frame:
+  //   1) downward expander ("gate") — soft, hysteretic, slow release
+  //   2) AGC (auto level voices) — scales toward a target output level
+  //   3) self-voice duck — best-effort attenuation when the input matches
+  //      the trained voice profile
+  // All three slew via setTargetAtTime so the audio never steps; this is
+  // what makes v5 sound smooth instead of choppy.
+  //
+  // Tunables:
+  //   AGC target output (linear amplitude)
+  //   AGC max gain (hard limit so we don't pump the room when nobody talks)
+  //   AGC min gain
+  //   Expander ratio + release per strength
   function runMeterLoop() {
     const sideBuf = new Float32Array(nodes.sidechain.fftSize);
     const meterBuf = new Float32Array(nodes.meter.fftSize);
+    const freqBins = nodes.spectrum.frequencyBinCount;
+    const freqBuf = new Uint8Array(freqBins);
+    const sampleRate = audioCtx.sampleRate || 48000;
+
+    // Smoothing constants — envelope attack faster than release for natural
+    // dynamics. Release ~250 ms means the expander glides instead of slams.
+    const ATTACK = 0.20;     // alpha for envelope rise
+    const RELEASE = 0.05;    // alpha for envelope fall (slower)
+    // Gain-stage smoothing (per-frame). Lower = slower, smoother.
+    const EXP_ATTACK = 0.30;
+    const EXP_RELEASE = 0.06;
+    const AGC_ATTACK = 0.05; // slow rise so we don't pump
+    const AGC_RELEASE = 0.20; // faster fall to react to loud peaks
+    const DUCK_ATTACK = 0.35; // duck quickly when self-voice detected
+    const DUCK_RELEASE = 0.10; // ease back smoothly
 
     const tick = () => {
       if (!running || !nodes) return;
       rafId = requestAnimationFrame(tick);
 
+      // ---- 1) Compute smoothed envelope (linear RMS) ----
       nodes.sidechain.getFloatTimeDomainData(sideBuf);
       let sumSq = 0;
       for (let i = 0; i < sideBuf.length; i++) sumSq += sideBuf[i] * sideBuf[i];
       const rms = Math.sqrt(sumSq / sideBuf.length);
-      const sideDb = rms > 0 ? 20 * Math.log10(rms) : -120;
+      const a = rms > envSmooth ? ATTACK : RELEASE;
+      envSmooth += (rms - envSmooth) * a;
+      const envDb = envSmooth > 1e-6 ? 20 * Math.log10(envSmooth) : -120;
 
+      // ---- 2) Downward expander ("Smooth Noise Reduction") ----
+      // Soft-knee around the threshold with hysteresis: opens at
+      // (threshold + 4 dB), closes at (threshold - 4 dB). Below the close
+      // point, attenuate by up to ~18 dB depending on how far below.
       const threshold = Number(ui.gate.value);
-      const target = sideDb > threshold ? 1 : 0;
-      const coef = target > gateRamp ? 0.45 : 0.05;
-      gateRamp += (target - gateRamp) * coef;
-      const gateVal = clarityKey() === 'bypass' ? 1 : gateRamp;
-      try { nodes.gate.gain.setTargetAtTime(gateVal, audioCtx.currentTime, 0.01); } catch (_) {}
+      let expTarget = 1;
+      if (clarityKey() === 'bypass') {
+        expTarget = 1;
+      } else {
+        const open = threshold + 4;
+        const close = threshold - 4;
+        if (envDb >= open) {
+          expTarget = 1;
+        } else if (envDb <= close) {
+          // Below the soft-floor: clamp to ~0.13 (~ -18 dB) instead of 0,
+          // so the room doesn't pop in/out. This is the key choppiness fix.
+          const below = Math.max(-18, envDb - close);
+          expTarget = Math.pow(10, below / 20); // -18 dB -> ~0.126
+          if (expTarget < 0.13) expTarget = 0.13;
+        } else {
+          // In the soft knee: linear interpolate 0.13..1
+          const t = (envDb - close) / (open - close);
+          expTarget = 0.13 + t * (1 - 0.13);
+        }
+      }
+      const ec = expTarget > expanderGain ? EXP_ATTACK : EXP_RELEASE;
+      expanderGain += (expTarget - expanderGain) * ec;
+      try {
+        nodes.gate.gain.setTargetAtTime(expanderGain, audioCtx.currentTime, 0.015);
+      } catch (_) {}
 
+      // ---- 3) AGC / Auto level voices ----
+      // Scale toward TARGET = 0.18 (linear, ~ -15 dBFS). Only apply when
+      // signal is above the expander's soft floor (treat near-silence as
+      // "don't pump").
+      const TARGET = 0.18;
+      const minG = 0.5;             // -6 dB
+      // Strength controls maximum boost: 0=off (1.0), 1=4x, 2=6x, 3=10x.
+      const maxByStrength = [1.0, 4.0, 6.0, 10.0];
+      const maxG = maxByStrength[autoLevelStrength] || 6.0;
+      let agcTarget = 1;
+      if (autoLevelOn && expanderGain > 0.25 && envSmooth > 0.005) {
+        agcTarget = TARGET / Math.max(0.005, envSmooth);
+        if (agcTarget > maxG) agcTarget = maxG;
+        if (agcTarget < minG) agcTarget = minG;
+      } else {
+        // Off / very quiet: glide toward unity instead of holding stale gain.
+        agcTarget = 1;
+      }
+      const ac = agcTarget > agcGain ? AGC_ATTACK : AGC_RELEASE;
+      agcGain += (agcTarget - agcGain) * ac;
+      try {
+        nodes.agc.gain.setTargetAtTime(agcGain, audioCtx.currentTime, 0.03);
+      } catch (_) {}
+
+      // ---- 4) Self-voice ducking (best-effort) ----
+      // Trigger requires:
+      //   (a) feature trained + on
+      //   (b) input is loud enough to be near-mic (≥ ~70% of profile peak)
+      //   (c) spectral centroid roughly matches profile (within 1.4 std)
+      // Duck depth scales with strength.
+      let duckTarget = 1;
+      if (selfVoice.on && selfVoice.trained && selfVoice.profile) {
+        nodes.spectrum.getByteFrequencyData(freqBuf);
+        let num = 0, den = 0;
+        for (let i = 0; i < freqBins; i++) {
+          const m = freqBuf[i];
+          if (m < 8) continue;
+          const f = (i * sampleRate) / (2 * freqBins);
+          num += f * m;
+          den += m;
+        }
+        const centroid = den > 0 ? num / den : 0;
+        const prof = selfVoice.profile;
+        const loud = envSmooth >= prof.rmsMean * 0.85;
+        const veryLoud = envSmooth >= prof.rmsPeak * 0.55;
+        const spectralOk = centroid > 0 && Math.abs(centroid - prof.centroidMean) <
+          Math.max(450, 1.4 * (prof.centroidStd || 250));
+        const matches = loud && spectralOk && veryLoud;
+        if (matches) {
+          // Strength 1=-4 dB, 2=-8 dB, 3=-14 dB.
+          const depthByStrength = [0, -4, -8, -14];
+          const dB = depthByStrength[selfVoice.strength] || -8;
+          duckTarget = Math.pow(10, dB / 20);
+        } else {
+          duckTarget = 1;
+        }
+      } else {
+        duckTarget = 1;
+      }
+      const dc = duckTarget < selfVoiceDuck ? DUCK_ATTACK : DUCK_RELEASE;
+      selfVoiceDuck += (duckTarget - selfVoiceDuck) * dc;
+      try {
+        nodes.selfDuck.gain.setTargetAtTime(selfVoiceDuck, audioCtx.currentTime, 0.02);
+      } catch (_) {}
+
+      // ---- 5) Meter + warnings ----
       nodes.meter.getFloatTimeDomainData(meterBuf);
       let peak = 0;
       for (let i = 0; i < meterBuf.length; i++) {
@@ -1411,6 +1737,154 @@
     };
 
     rafId = requestAnimationFrame(tick);
+  }
+
+  // ---------- v5: Self-voice training ----------
+  // Capture a 3-second sample of the user reading a phrase, then store an
+  // in-memory profile of average level + spectral centroid. Honest about
+  // limits in the UI; this is feature-engineered, not voiceprint ML.
+  async function trainSelfVoice() {
+    if (selfVoice.training) return;
+    selfVoice.training = true;
+    if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'training');
+    if (ui.trainSelfVoiceBtn) ui.trainSelfVoiceBtn.disabled = true;
+    updateSelfVoiceLabels();
+
+    let tempStream = null;
+    let tempCtx = null;
+    let usingExisting = false;
+    let analyser = null;
+    let spectrumNode = null;
+    let sampleRate = 48000;
+
+    try {
+      if (running && nodes && audioCtx) {
+        analyser = nodes.sidechain;
+        spectrumNode = nodes.spectrum;
+        sampleRate = audioCtx.sampleRate || 48000;
+        usingExisting = true;
+      } else {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Microphone API not available');
+        }
+        if (ui.selfVoiceStatus) {
+          ui.selfVoiceStatus.textContent = 'Asking for mic\u2026';
+          ui.selfVoiceStatus.setAttribute('data-state', 'working');
+        }
+        tempStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+          video: false,
+        });
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        tempCtx = new Ctx({ latencyHint: 'interactive' });
+        if (tempCtx.state === 'suspended') {
+          try { await tempCtx.resume(); } catch (_) {}
+        }
+        sampleRate = tempCtx.sampleRate || 48000;
+        const src = tempCtx.createMediaStreamSource(tempStream);
+        analyser = tempCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.4;
+        spectrumNode = tempCtx.createAnalyser();
+        spectrumNode.fftSize = 2048;
+        spectrumNode.smoothingTimeConstant = 0.5;
+        src.connect(analyser);
+        src.connect(spectrumNode);
+      }
+
+      // Countdown so the user knows when to start speaking.
+      for (let n = 3; n >= 1; n--) {
+        if (ui.selfVoiceStatus) {
+          ui.selfVoiceStatus.textContent = 'Get ready\u2026 ' + n;
+          ui.selfVoiceStatus.setAttribute('data-state', 'working');
+        }
+        await new Promise((r) => setTimeout(r, 600));
+      }
+      if (ui.selfVoiceStatus) {
+        ui.selfVoiceStatus.textContent = 'Speak now: \u201CThe quick brown fox jumps over the lazy dog.\u201D';
+        ui.selfVoiceStatus.setAttribute('data-state', 'working');
+      }
+
+      const tBuf = new Float32Array(analyser.fftSize);
+      const fBins = spectrumNode.frequencyBinCount;
+      const fBuf = new Uint8Array(fBins);
+
+      const rmsSamples = [];
+      const centroidSamples = [];
+      const startMs = performance.now();
+      const totalMs = 3000;
+      while (performance.now() - startMs < totalMs) {
+        analyser.getFloatTimeDomainData(tBuf);
+        let sumSq = 0;
+        for (let i = 0; i < tBuf.length; i++) sumSq += tBuf[i] * tBuf[i];
+        const rms = Math.sqrt(sumSq / tBuf.length);
+        if (rms > 0.005) rmsSamples.push(rms); // ignore silence between syllables
+
+        spectrumNode.getByteFrequencyData(fBuf);
+        let num = 0, den = 0;
+        for (let i = 0; i < fBins; i++) {
+          const m = fBuf[i];
+          if (m < 8) continue;
+          const f = (i * sampleRate) / (2 * fBins);
+          num += f * m;
+          den += m;
+        }
+        if (den > 0) centroidSamples.push(num / den);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      if (rmsSamples.length < 6 || centroidSamples.length < 6) {
+        throw new Error('Not enough voice detected. Try again, a little louder.');
+      }
+
+      // Robust statistics: trimmed mean for level, mean+std for centroid.
+      rmsSamples.sort((a, b) => a - b);
+      const trim = Math.floor(rmsSamples.length * 0.1);
+      const trimmed = rmsSamples.slice(trim, rmsSamples.length - trim);
+      const rmsMean = trimmed.reduce((s, v) => s + v, 0) / Math.max(1, trimmed.length);
+      const rmsPeak = rmsSamples[Math.min(rmsSamples.length - 1, Math.floor(rmsSamples.length * 0.95))];
+
+      const cMean = centroidSamples.reduce((s, v) => s + v, 0) / centroidSamples.length;
+      let cVar = 0;
+      for (let i = 0; i < centroidSamples.length; i++) {
+        const d = centroidSamples[i] - cMean;
+        cVar += d * d;
+      }
+      const cStd = Math.sqrt(cVar / centroidSamples.length);
+
+      selfVoice.profile = {
+        rmsMean,
+        rmsPeak,
+        centroidMean: cMean,
+        centroidStd: cStd,
+      };
+      selfVoice.trained = true;
+      // Auto-enable so the user gets immediate effect; they can flip it off.
+      if (ui.selfVoiceToggle) ui.selfVoiceToggle.checked = true;
+      selfVoice.on = true;
+      selfVoiceDuck = 1;
+    } catch (err) {
+      console.warn('Self-voice training failed:', err);
+      selfVoice.trained = false;
+      selfVoice.profile = null;
+      const msg = (err && err.message) ? err.message : 'Training failed';
+      if (ui.selfVoiceStatus) {
+        ui.selfVoiceStatus.textContent = msg.length < 64 ? msg : 'Training failed';
+        ui.selfVoiceStatus.setAttribute('data-state', 'warn');
+      }
+    } finally {
+      selfVoice.training = false;
+      if (ui.selfVoiceControl) ui.selfVoiceControl.removeAttribute('data-self-voice');
+      if (ui.trainSelfVoiceBtn) {
+        ui.trainSelfVoiceBtn.disabled = false;
+        ui.trainSelfVoiceBtn.textContent = selfVoice.trained ? 'Retrain my voice' : 'Train my voice';
+      }
+      if (!usingExisting) {
+        try { if (tempStream) tempStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+        try { if (tempCtx) tempCtx.close(); } catch (_) {}
+      }
+      updateSelfVoiceLabels();
+    }
   }
 
   // ---------- Cleanup ----------

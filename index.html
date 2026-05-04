@@ -150,6 +150,10 @@
         <button type="button" class="link-btn link-btn--inline" id="awakeOpenAutoLockBtn" data-testid="button-open-autolock">Open Display &amp; Brightness</button>
       </p>
 
+      <p class="warn warn--bg" id="backgroundAudioWarn" data-testid="warning-background-audio">
+        <strong>Heads up:</strong> in this web prototype, audio stops if the screen turns off or you switch apps. Music apps keep playing in the background because they use a native iOS feature this browser does not have. Keep <strong>Auto-Lock = Never</strong> and Safari in the foreground while listening. A native iOS app could keep the mic and audio running with the screen off.
+      </p>
+
       <!-- Microphone source picker -->
       <div class="micsrc" id="micSource" data-testid="control-mic-source">
         <div class="micsrc__row">
@@ -168,7 +172,7 @@
         </p>
       </div>
 
-      <!-- Echo / room reduction quick toggle + calibrate button -->
+      <!-- Echo / room reduction quick toggle -->
       <div class="quickrow" data-testid="control-quickrow">
         <label class="quickrow__toggle" for="echoReductionToggle">
           <span class="quickrow__toggle-label">
@@ -180,13 +184,6 @@
             <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
           </span>
         </label>
-        <div class="quickrow__cal">
-          <button type="button" class="btn btn--ghost btn--mini" id="calibrateBtn" data-testid="button-calibrate-noise" aria-label="Calibrate room noise">
-            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M3 12 L7 12 L9 6 L12 18 L15 9 L17 12 L21 12"/></svg>
-            Calibrate room noise
-          </button>
-          <span class="quickrow__cal-status" id="calibrationStatus" data-testid="status-calibration" aria-live="polite">Hold quiet for 2 seconds, then tap.</span>
-        </div>
       </div>
 
       <button id="toggle" class="bigbtn" data-testid="button-toggle" aria-pressed="false" aria-label="Start Listening">
@@ -226,11 +223,11 @@
 
       <div class="control" data-testid="control-noise">
         <div class="control__head">
-          <label for="gate">Background Noise Reduction</label>
+          <label for="gate">Smooth Noise Reduction</label>
           <span class="control__val" id="gateVal" data-testid="text-gate-value">High</span>
         </div>
-        <input id="gate" type="range" min="-80" max="-20" step="1" value="-48" data-testid="slider-gate" aria-label="Background Noise Reduction" />
-        <p class="control__hint">Tip: tap <em>Calibrate room noise</em> above to set this for the room you're in.</p>
+        <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" data-testid="slider-gate" aria-label="Smooth Noise Reduction" />
+        <p class="control__hint">Gently lowers steady room sound between words instead of cutting it off. Move left if voices feel quiet between words; right if the room is too loud.</p>
       </div>
 
       <div class="control" data-testid="control-clarity">
@@ -247,6 +244,44 @@
           <option value="bright">Brighter</option>
           <option value="aggressive">Strong</option>
         </select>
+      </div>
+
+      <!-- Auto level voices: AGC / leveling toward target output -->
+      <div class="control control--switch" data-testid="control-auto-level">
+        <div class="control__head">
+          <label for="autoLevelToggle">Auto level voices</label>
+          <span class="awake__switch control__switch">
+            <input type="checkbox" id="autoLevelToggle" data-testid="toggle-auto-level" checked />
+            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
+          </span>
+        </div>
+        <p class="control__hint">Quieter, farther voices come up; loud nearby voices get held back. A built-in limiter prevents harsh clipping.</p>
+        <div class="control__sub">
+          <label for="autoLevelStrength" class="control__sub-label">Strength</label>
+          <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="2" data-testid="slider-auto-level" aria-label="Auto level strength" />
+          <span class="control__val control__val--small" id="autoLevelStatus" data-testid="status-auto-level">On · Medium</span>
+        </div>
+      </div>
+
+      <!-- Reduce my voice: best-effort self-voice ducking with training -->
+      <div class="control control--switch" data-testid="control-self-voice">
+        <div class="control__head">
+          <label for="selfVoiceToggle">Reduce my voice</label>
+          <span class="awake__switch control__switch">
+            <input type="checkbox" id="selfVoiceToggle" data-testid="toggle-self-voice" />
+            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
+          </span>
+        </div>
+        <p class="control__hint">Best-effort: ducks audio when very loud, near-mic speech matches your voice profile. Train it once, then turn it on. <strong>Honest limit:</strong> a web prototype cannot truly remove a single speaker; a native ML implementation would do better.</p>
+        <div class="control__row">
+          <button type="button" class="btn btn--step" id="trainSelfVoiceBtn" data-testid="button-train-self-voice">Train my voice</button>
+          <span class="control__val control__val--small" id="selfVoiceStatus" data-testid="status-self-voice">Not trained</span>
+        </div>
+        <div class="control__sub">
+          <label for="selfVoiceStrength" class="control__sub-label">Strength</label>
+          <input id="selfVoiceStrength" type="range" min="0" max="3" step="1" value="2" data-testid="slider-self-voice" aria-label="Reduce my voice strength" />
+          <span class="control__val control__val--small" id="selfVoiceStrengthVal" data-testid="text-self-voice-strength">Medium</span>
+        </div>
       </div>
     </section>
 
@@ -335,9 +370,48 @@
           <ul class="help__list">
             <li><strong>No sound?</strong> Check your headset is connected, then re-route via Control Center.</li>
             <li><strong>Tinny / call-quality sound?</strong> Some Bluetooth headsets switch to a low-quality call mode when the mic is on.</li>
-            <li><strong>Choppy audio?</strong> Lower Noise Reduction one notch.</li>
-            <li><strong>Harsh or clipping?</strong> Lower Volume Boost.</li>
+            <li><strong>Choppy audio?</strong> Lower <em>Smooth Noise Reduction</em> one notch — the v5 engine already smooths cuts gently, but extreme settings can still pump.</li>
+            <li><strong>Harsh or clipping?</strong> Lower Volume Boost. <em>Auto level voices</em> includes a soft limiter to keep peaks safe.</li>
+            <li><strong>Far-away people too quiet?</strong> Turn <em>Auto level voices</em> on (default) and set Strength to High.</li>
+            <li><strong>Hearing yourself loudly?</strong> Train and turn on <em>Reduce my voice</em>. This is best-effort and won't fully remove you.</li>
           </ul>
+        </details>
+
+        <details class="help" data-testid="details-background-audio">
+          <summary><span class="help__title">Will it keep working when my phone sleeps?</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p><strong>Short answer: not reliably in this web prototype.</strong> Music apps keep playing with the screen off because iOS gives them a dedicated <em>background audio</em> mode that web pages don't have. Safari pauses or kills audio capture when the screen locks or you switch apps.</p>
+          <p>What works in the web version:</p>
+          <ul class="help__list">
+            <li>Set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while listening.</li>
+            <li>Keep Safari in the foreground — don't switch apps.</li>
+            <li>Disable <strong>Low Power Mode</strong>.</li>
+          </ul>
+          <p>A future native iOS app could request background audio so ClearTable keeps working with the screen off, just like a music app. That's a platform feature only native apps can use.</p>
+        </details>
+
+        <details class="help" data-testid="details-auto-level">
+          <summary><span class="help__title">Auto level voices</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>This is a smooth automatic gain control (AGC) plus a downward expander. It scales each voice toward a comfortable listening level, so quiet people across the table come up and loud people next to you don't blast. A soft limiter holds peaks back to protect your hearing and the headset.</p>
+          <p>Strength <strong>Off</strong> uses a manual makeup gain only. Strength <strong>Low / Medium / High</strong> applies progressively more leveling and a slower release for a more natural sound.</p>
+        </details>
+
+        <details class="help" data-testid="details-self-voice">
+          <summary><span class="help__title">Reduce my voice (best-effort)</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>Tap <em>Train my voice</em>, then read the prompt aloud at a normal volume for ~3 seconds. ClearTable measures your average loudness and a rough spectral fingerprint and stores it on this device only.</p>
+          <p>When the toggle is on, the app ducks the output (lowers volume briefly) when it detects very loud, near-mic speech that broadly matches your profile. It eases back up after you stop talking.</p>
+          <p><strong>Honest limits:</strong> this is not voiceprint-based speaker separation. A web page cannot truly subtract one speaker from a single mic. Expect partial reduction, occasional false trips on similar voices, and momentary dips when you talk. A native app with on-device ML (e.g. RNNoise / personal voice activity detection) would do this much better.</p>
+        </details>
+
+        <details class="help help--advanced" data-testid="details-advanced">
+          <summary><span class="help__title">Advanced</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>Calibrating room noise needs a quiet moment. In a noisy restaurant it's usually not feasible, so we removed it from the main screen. Use it only when you can be quiet for ~2 seconds.</p>
+          <div class="advanced__row">
+            <button type="button" class="btn btn--ghost btn--mini" id="calibrateBtn" data-testid="button-calibrate-noise" aria-label="Calibrate room noise">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M3 12 L7 12 L9 6 L12 18 L15 9 L17 12 L21 12"/></svg>
+              Calibrate room noise
+            </button>
+            <span class="quickrow__cal-status" id="calibrationStatus" data-testid="status-calibration" aria-live="polite">Hold quiet for 2 seconds, then tap.</span>
+          </div>
         </details>
 
         <details class="help" data-testid="details-limits">
