@@ -301,7 +301,8 @@
           <span class="transcript__status" id="transcriptStatus" data-testid="text-transcript-status" aria-live="polite">Off</span>
         </div>
         <div class="transcript__controls">
-          <button type="button" class="btn btn--step" id="transcriptToggleBtn" data-testid="button-transcript-toggle" aria-pressed="false">Turn on</button>
+          <button type="button" class="btn btn--step" id="transcriptToggleBtn" data-testid="button-transcript-toggle" aria-pressed="false">Start transcript</button>
+          <button type="button" class="btn btn--ghost btn--mini" id="transcriptRestartBtn" data-testid="button-transcript-restart" aria-label="Restart transcript recognition" disabled>Restart</button>
           <button type="button" class="btn btn--ghost btn--mini" id="transcriptClearBtn" data-testid="button-transcript-clear">Clear</button>
           <label class="transcript__autoscroll">
             <input type="checkbox" id="transcriptAutoscroll" data-testid="toggle-transcript-autoscroll" checked />
@@ -310,8 +311,11 @@
         </div>
       </div>
       <div class="transcript__output" id="transcriptOutput" data-testid="text-transcript-output" role="log" aria-live="polite" aria-atomic="false">
-        <p class="transcript__placeholder" id="transcriptPlaceholder">Tap <em>Turn on</em> to start a live transcript on this device.</p>
+        <p class="transcript__placeholder" id="transcriptPlaceholder">Tap <em>Start transcript</em> to try a live transcript on this device. The transcript is independent of the audio engine — you can start audio without it.</p>
       </div>
+      <p class="transcript__hint" id="transcriptHint" data-testid="text-transcript-hint">
+        <strong>Honest limit:</strong> the transcript uses your browser's built-in speech recognition (Web Speech API). On iPhone Safari it may go silent for long stretches even when audio is clear, especially while a Bluetooth headset or the Web Audio mic graph is active. If text stops appearing, tap <em>Restart</em>. A native iOS speech-recognition framework would be more reliable than this web prototype.
+      </p>
       <p class="transcript__privacy" data-testid="text-transcript-privacy">
         Privacy note: unlike the audio enhancement above, browser speech recognition may send audio to Apple, Google, or other speech services depending on your browser. Audio enhancement still runs entirely on this device.
       </p>

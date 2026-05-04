@@ -127,10 +127,12 @@
     transcriptSection: $('transcriptSection'),
     transcriptStatus: $('transcriptStatus'),
     transcriptToggleBtn: $('transcriptToggleBtn'),
+    transcriptRestartBtn: $('transcriptRestartBtn'),
     transcriptClearBtn: $('transcriptClearBtn'),
     transcriptAutoscroll: $('transcriptAutoscroll'),
     transcriptOutput: $('transcriptOutput'),
     transcriptPlaceholder: $('transcriptPlaceholder'),
+    transcriptHint: $('transcriptHint'),
 
     // Reset
     resetBtn: $('resetBtn'),
@@ -281,6 +283,13 @@
     if (typeof applyLevelerStrength === 'function') applyLevelerStrength();
   }
 
+  // Update the "Reduce my voice" status pill + toggle wiring. Honest states:
+  //   Not trained  → toggle disabled (no profile yet)
+  //   Training\u2026     → toggle disabled (capture in progress)
+  //   Active       → trained + on; ducking applies when self-voice detected
+  //   Off          → trained but user has flipped it off
+  // The toggle is ONLY disabled before a profile exists; once trained the user
+  // is always allowed to flip it on/off, even mid-listening session.
   function updateSelfVoiceLabels() {
     if (ui.selfVoiceStrength) {
       paintRange(ui.selfVoiceStrength);
@@ -289,6 +298,23 @@
       if (ui.selfVoiceStrengthVal) ui.selfVoiceStrengthVal.textContent = SELF_VOICE_STRENGTH_LABELS[s] || 'Strong';
     }
     if (!ui.selfVoiceStatus) return;
+    // Toggle wiring — set BEFORE writing status text so a brief race during
+    // training cannot leave the input in a stuck `disabled` state.
+    if (ui.selfVoiceToggle) {
+      const shouldDisable = selfVoice.training || !selfVoice.trained;
+      ui.selfVoiceToggle.disabled = shouldDisable;
+      if (shouldDisable) {
+        ui.selfVoiceToggle.setAttribute('aria-disabled', 'true');
+      } else {
+        ui.selfVoiceToggle.removeAttribute('aria-disabled');
+      }
+      // Keep visual checked state synced to the truthful self-voice state.
+      // (Otherwise an iOS Safari paint glitch can leave the thumb stale.)
+      const wantChecked = !!(selfVoice.trained && selfVoice.on);
+      if (ui.selfVoiceToggle.checked !== wantChecked) {
+        ui.selfVoiceToggle.checked = wantChecked;
+      }
+    }
     if (selfVoice.training) {
       ui.selfVoiceStatus.textContent = 'Training\u2026';
       ui.selfVoiceStatus.setAttribute('data-state', 'working');
@@ -297,15 +323,13 @@
     if (!selfVoice.trained) {
       ui.selfVoiceStatus.textContent = 'Not trained';
       ui.selfVoiceStatus.setAttribute('data-state', 'off');
-      if (ui.selfVoiceToggle) ui.selfVoiceToggle.disabled = true;
       return;
     }
-    if (ui.selfVoiceToggle) ui.selfVoiceToggle.disabled = false;
     if (selfVoice.on) {
       ui.selfVoiceStatus.textContent = 'Active';
       ui.selfVoiceStatus.setAttribute('data-state', 'active');
     } else {
-      ui.selfVoiceStatus.textContent = 'Trained \u00b7 Off';
+      ui.selfVoiceStatus.textContent = 'Off';
       ui.selfVoiceStatus.setAttribute('data-state', 'ok');
     }
   }
@@ -376,8 +400,9 @@
   if (ui.selfVoiceToggle) {
     ui.selfVoiceToggle.addEventListener('change', () => {
       if (!selfVoice.trained) {
-        // Should not happen — toggle is disabled until trained.
-        ui.selfVoiceToggle.checked = false;
+        // Defensive: if a stale event arrives before training completes,
+        // force the input back to its real (off) state instead of leaving
+        // it half-on with no profile behind it.
         selfVoice.on = false;
       } else {
         selfVoice.on = !!ui.selfVoiceToggle.checked;
@@ -617,6 +642,18 @@
   updateSelfVoiceLabels();
 
   // ---------- Live transcript (Web Speech API) ----------
+  // The transcript uses the browser's SpeechRecognition. On iOS Safari this
+  // is unreliable when the page is already running a Web Audio mic graph: a
+  // second recognition session may share the mic, time out silently after a
+  // few seconds, or never deliver `onresult` at all even though the audio
+  // engine is happily processing sound. We therefore:
+  //
+  //   - default to MANUAL start (no auto-start when listening begins)
+  //   - watch for long stretches with no `onresult` and surface that
+  //   - count restarts so the user can see when iOS is silently dropping us
+  //   - expose a Restart transcript button that rebuilds the recognizer
+  //   - keep a clear status line: Off / Starting… / Listening / No speech
+  //     heard / Restarting… / Error: … / Unsupported
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
   const transcript = {
     rec: null,
@@ -625,26 +662,49 @@
     interimEl: null,       // span for current interim result
     autoRestart: true,     // restart on natural end while enabled
     supported: !!SpeechRecognitionCtor,
+    lastResultMs: 0,       // wall-clock of last onresult (any kind)
+    restartCount: 0,       // visible counter so silent iOS drops are obvious
+    watchdog: null,        // setInterval id for no-speech surfacing
+    lastErr: '',           // last non-benign error code we saw
   };
 
   function setTranscriptStatus(text, state) {
     if (!ui.transcriptStatus) return;
-    ui.transcriptStatus.textContent = text;
+    let suffix = '';
+    if (transcript.restartCount > 0 && (state === 'listening' || state === 'on')) {
+      suffix = ' · restarts: ' + transcript.restartCount;
+    }
+    ui.transcriptStatus.textContent = text + suffix;
     if (state) ui.transcriptStatus.setAttribute('data-state', state);
     else ui.transcriptStatus.removeAttribute('data-state');
   }
 
   function setTranscriptToggleLabel() {
-    if (!ui.transcriptToggleBtn) return;
-    if (!transcript.supported) {
-      ui.transcriptToggleBtn.textContent = 'Unavailable';
-      ui.transcriptToggleBtn.disabled = true;
-      ui.transcriptToggleBtn.setAttribute('aria-disabled', 'true');
-      ui.transcriptToggleBtn.setAttribute('aria-pressed', 'false');
-      return;
+    if (ui.transcriptToggleBtn) {
+      if (!transcript.supported) {
+        ui.transcriptToggleBtn.textContent = 'Unavailable';
+        ui.transcriptToggleBtn.disabled = true;
+        ui.transcriptToggleBtn.setAttribute('aria-disabled', 'true');
+        ui.transcriptToggleBtn.setAttribute('aria-pressed', 'false');
+      } else {
+        ui.transcriptToggleBtn.textContent = transcript.enabled ? 'Stop transcript' : 'Start transcript';
+        ui.transcriptToggleBtn.setAttribute('aria-pressed', transcript.enabled ? 'true' : 'false');
+        ui.transcriptToggleBtn.disabled = false;
+        ui.transcriptToggleBtn.removeAttribute('aria-disabled');
+      }
     }
-    ui.transcriptToggleBtn.textContent = transcript.enabled ? 'Turn off' : 'Turn on';
-    ui.transcriptToggleBtn.setAttribute('aria-pressed', transcript.enabled ? 'true' : 'false');
+    if (ui.transcriptRestartBtn) {
+      // Restart is only useful when the user has the transcript turned on
+      // (or it is supported and might be stuck). Disable when off.
+      if (!transcript.supported) {
+        ui.transcriptRestartBtn.disabled = true;
+        ui.transcriptRestartBtn.setAttribute('aria-disabled', 'true');
+      } else {
+        ui.transcriptRestartBtn.disabled = !transcript.enabled;
+        if (!transcript.enabled) ui.transcriptRestartBtn.setAttribute('aria-disabled', 'true');
+        else ui.transcriptRestartBtn.removeAttribute('aria-disabled');
+      }
+    }
   }
 
   function clearTranscriptOutput() {
@@ -714,9 +774,11 @@
 
     rec.onstart = () => {
       transcript.listening = true;
+      transcript.lastResultMs = performance.now();
       setTranscriptStatus('Listening', 'listening');
     };
     rec.onresult = (event) => {
+      transcript.lastResultMs = performance.now();
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
@@ -728,36 +790,83 @@
         }
       }
       setInterim(interim);
+      // If we just got our first result after a stretch of silence, promote
+      // the visible status from "No speech heard" back to "Listening".
+      if (transcript.enabled) setTranscriptStatus('Listening', 'listening');
     };
     rec.onerror = (event) => {
       const err = event && event.error ? event.error : 'unknown';
+      transcript.lastErr = err;
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         transcript.enabled = false;
         transcript.autoRestart = false;
         setTranscriptStatus('Permission denied', 'error');
+        stopTranscriptWatchdog();
         setTranscriptToggleLabel();
-      } else if (err === 'no-speech' || err === 'aborted') {
-        // benign; will end naturally
+      } else if (err === 'no-speech') {
+        // iOS Safari fires this when continuous mode times out. Don't kill
+        // the session — onend will run next and we'll auto-restart.
+        setTranscriptStatus('No speech heard · will retry', 'warn');
+      } else if (err === 'aborted') {
+        // benign; happens when we stop() or restart()
       } else if (err === 'audio-capture') {
-        setTranscriptStatus('No microphone', 'error');
+        setTranscriptStatus('No microphone available to recognizer', 'error');
       } else if (err === 'network') {
-        setTranscriptStatus('Network error', 'error');
+        setTranscriptStatus('Network error · will retry', 'warn');
       } else {
         setTranscriptStatus('Error: ' + err, 'error');
       }
     };
     rec.onend = () => {
       transcript.listening = false;
-      // Flush any lingering interim into the DOM as-is (don't promote to final).
       if (transcript.enabled && transcript.autoRestart) {
-        // Continuous mode on iOS Safari often ends after a few seconds; restart.
-        try { rec.start(); setTranscriptStatus('Listening', 'listening'); }
-        catch (_) { setTranscriptStatus('On', 'on'); }
+        // Continuous mode on iOS Safari often ends after a few seconds.
+        // Bump the visible restart counter so silent drops are obvious.
+        transcript.restartCount += 1;
+        try {
+          rec.start();
+          setTranscriptStatus('Restarting\u2026', 'listening');
+        } catch (_) {
+          // If start() throws (race in iOS Safari), schedule a fresh
+          // recognizer instance after a short delay.
+          setTimeout(() => {
+            if (!transcript.enabled) return;
+            try {
+              transcript.rec = buildRecognition();
+              if (transcript.rec) transcript.rec.start();
+              setTranscriptStatus('Restarting\u2026', 'listening');
+            } catch (e2) {
+              setTranscriptStatus('Stuck · tap Restart', 'error');
+            }
+          }, 250);
+        }
       } else {
         setTranscriptStatus('Off');
       }
     };
     return rec;
+  }
+
+  // Watchdog: if the recognizer is supposedly listening but we haven't seen
+  // *any* result in N seconds, surface that to the user. This is the case the
+  // user reported — "audio is clear but nothing is being transcribed".
+  function startTranscriptWatchdog() {
+    stopTranscriptWatchdog();
+    transcript.watchdog = setInterval(() => {
+      if (!transcript.enabled) return;
+      const now = performance.now();
+      const since = now - (transcript.lastResultMs || now);
+      // 12 s without any result while "listening" — surface the silence.
+      if (transcript.listening && since > 12000) {
+        setTranscriptStatus('No speech heard yet · still listening', 'warn');
+      }
+    }, 2000);
+  }
+  function stopTranscriptWatchdog() {
+    if (transcript.watchdog) {
+      clearInterval(transcript.watchdog);
+      transcript.watchdog = null;
+    }
   }
 
   function startTranscript() {
@@ -769,6 +878,8 @@
     if (!transcript.rec) return;
     transcript.enabled = true;
     transcript.autoRestart = true;
+    transcript.restartCount = 0;
+    transcript.lastResultMs = performance.now();
     setTranscriptToggleLabel();
     try {
       transcript.rec.start();
@@ -777,17 +888,49 @@
       // start() throws if already started — treat as "on"
       setTranscriptStatus('On', 'on');
     }
+    startTranscriptWatchdog();
   }
 
   function stopTranscript() {
     transcript.enabled = false;
     transcript.autoRestart = false;
+    stopTranscriptWatchdog();
     setTranscriptToggleLabel();
     if (transcript.rec && transcript.listening) {
       try { transcript.rec.stop(); } catch (_) {}
     }
     setInterim('');
+    transcript.restartCount = 0;
     setTranscriptStatus('Off');
+  }
+
+  // Force-restart: tear down the current recognizer (which iOS Safari often
+  // gets stuck in) and rebuild a fresh one. This is the most reliable way to
+  // un-stick a silent recognition on a real iPhone.
+  function restartTranscript() {
+    if (!transcript.supported) return;
+    if (!transcript.enabled) {
+      // Treat Restart-when-off as Start (forgiving UX).
+      startTranscript();
+      return;
+    }
+    transcript.autoRestart = false;
+    try { if (transcript.rec) transcript.rec.abort(); } catch (_) {}
+    try { if (transcript.rec) transcript.rec.stop(); } catch (_) {}
+    setInterim('');
+    setTranscriptStatus('Restarting\u2026', 'listening');
+    setTimeout(() => {
+      if (!transcript.enabled) return;
+      transcript.rec = buildRecognition();
+      transcript.autoRestart = true;
+      transcript.restartCount += 1;
+      transcript.lastResultMs = performance.now();
+      try {
+        if (transcript.rec) transcript.rec.start();
+      } catch (err) {
+        setTranscriptStatus('Could not restart · try again', 'error');
+      }
+    }, 350);
   }
 
   if (ui.transcriptToggleBtn) {
@@ -795,6 +938,11 @@
       if (!transcript.supported) return;
       if (transcript.enabled) stopTranscript();
       else startTranscript();
+    });
+  }
+  if (ui.transcriptRestartBtn) {
+    ui.transcriptRestartBtn.addEventListener('click', () => {
+      restartTranscript();
     });
   }
   if (ui.transcriptClearBtn) {
@@ -807,7 +955,7 @@
   if (!transcript.supported) {
     setTranscriptStatus('Unsupported', 'unsupported');
     if (ui.transcriptPlaceholder) {
-      ui.transcriptPlaceholder.textContent = 'Live transcript is not available in this browser.';
+      ui.transcriptPlaceholder.textContent = 'Live transcript is not available in this browser. Try Chrome on Android, or Safari on a recent iPhone.';
     }
   } else {
     setTranscriptStatus('Off');
@@ -1374,11 +1522,11 @@
     ui.toggleLabel.textContent = 'Stop';
     setStatus('Listening', 'live');
 
-    // Auto-start transcript when listening begins, if supported and not already on.
-    // Uses a *separate* SpeechRecognition session — does not touch our Web Audio stream.
-    if (transcript.supported && !transcript.enabled) {
-      startTranscript();
-    }
+    // NOTE: We deliberately do NOT auto-start the transcript here. On real
+    // iPhones, running a second SpeechRecognition session at the same time as
+    // the Web Audio mic graph often produces a silent recognizer (clear audio,
+    // no `onresult` events). The transcript section now has its own explicit
+    // "Start transcript" button so the user can opt in after audio is stable.
 
     // Request a screen wake lock from this user-gesture call to keep the
     // iPhone awake while listening. Safe no-op if unsupported.

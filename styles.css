@@ -499,8 +499,21 @@ input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offs
 }
 .transcript__status[data-state="on"] { color: var(--ok); }
 .transcript__status[data-state="listening"] { color: var(--accent); }
+.transcript__status[data-state="warn"] { color: var(--warn); }
 .transcript__status[data-state="error"] { color: var(--danger); }
 .transcript__status[data-state="unsupported"] { color: var(--warn); }
+
+.transcript__hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint, #8ea0b3);
+  background: rgba(255, 200, 120, 0.05);
+  border: 1px solid rgba(255, 200, 120, 0.18);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin: 10px 0 4px;
+}
+.transcript__hint strong { color: var(--text-dim, #b9c2cf); font-weight: 600; }
 
 .transcript__controls {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -746,6 +759,16 @@ input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offs
   opacity: 0;
   margin: 0;
   cursor: pointer;
+  /* Critical: keep the (transparent) <input> above the .awake__track and
+     .awake__thumb so taps on the visible part of the switch always reach
+     the real checkbox. Without this, iOS Safari sends the tap to the
+     decorative thumb and the toggle silently no-ops. */
+  z-index: 2;
+  -webkit-appearance: none;
+}
+.awake__switch .awake__track,
+.awake__switch .awake__track .awake__thumb {
+  pointer-events: none;
 }
 .awake__track {
   position: absolute; inset: 0;
