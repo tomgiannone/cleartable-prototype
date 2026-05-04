@@ -40,6 +40,7 @@
     stepPlace: $('setupStepPlace'),
     pairConfirmBtn: $('pairConfirmBtn'),
     pairStatus: $('pairStatus'),
+    openBtSettingsBtn: $('openBtSettingsBtn'),
     checkMicBtn: $('checkMicBtn'),
     micStatus: $('micStatus'),
     micTroubleshoot: $('micTroubleshoot'),
@@ -69,6 +70,15 @@
     sheet: $('sheet'),
     sheetScrim: $('sheetScrim'),
     sheetClose: $('sheetClose'),
+
+    // Transcript
+    transcriptSection: $('transcriptSection'),
+    transcriptStatus: $('transcriptStatus'),
+    transcriptToggleBtn: $('transcriptToggleBtn'),
+    transcriptClearBtn: $('transcriptClearBtn'),
+    transcriptAutoscroll: $('transcriptAutoscroll'),
+    transcriptOutput: $('transcriptOutput'),
+    transcriptPlaceholder: $('transcriptPlaceholder'),
 
     // Reset
     resetBtn: $('resetBtn'),
@@ -210,9 +220,39 @@
 
   ui.pairConfirmBtn.addEventListener('click', () => {
     setupState.pair = true;
-    setStepState(ui.stepPair, 'done', ui.pairStatus, 'Confirmed');
+    setStepState(ui.stepPair, 'done', ui.pairStatus, 'Connected');
     updateContinueState();
   });
+
+  // ---------- Open iOS Bluetooth Settings (best-effort) ----------
+  // iOS deep-link schemes are unofficial and unreliable from web pages,
+  // but we try common ones. We always show fallback copy in the UI.
+  if (ui.openBtSettingsBtn) {
+    ui.openBtSettingsBtn.addEventListener('click', () => {
+      const ua = (navigator.userAgent || '').toLowerCase();
+      const isIOS = /iphone|ipad|ipod/.test(ua) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+      if (isIOS) {
+        // Try the App-Prefs scheme first; some iOS versions ignore it.
+        // Use a hidden iframe so failures don't navigate Safari away.
+        const tryScheme = (url) => {
+          try {
+            const f = document.createElement('iframe');
+            f.style.cssText = 'display:none;width:0;height:0;border:0;';
+            f.src = url;
+            document.body.appendChild(f);
+            setTimeout(() => { try { f.remove(); } catch (_) {} }, 1500);
+          } catch (_) { /* ignore */ }
+        };
+        tryScheme('App-Prefs:root=Bluetooth');
+        setTimeout(() => tryScheme('prefs:root=Bluetooth'), 250);
+      }
+
+      // Visual nudge so the user knows what to do next.
+      if (ui.pairStatus) ui.pairStatus.textContent = 'Check Settings, then tap \u201CHeadset is connected\u201D';
+    });
+  }
 
   ui.placeConfirmBtn.addEventListener('click', () => {
     setupState.place = true;
@@ -315,6 +355,204 @@
   updateGateLabel();
   updateClarityLabel();
 
+  // ---------- Live transcript (Web Speech API) ----------
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const transcript = {
+    rec: null,
+    enabled: false,        // user wants it on
+    listening: false,      // recognizer is currently active
+    interimEl: null,       // span for current interim result
+    autoRestart: true,     // restart on natural end while enabled
+    supported: !!SpeechRecognitionCtor,
+  };
+
+  function setTranscriptStatus(text, state) {
+    if (!ui.transcriptStatus) return;
+    ui.transcriptStatus.textContent = text;
+    if (state) ui.transcriptStatus.setAttribute('data-state', state);
+    else ui.transcriptStatus.removeAttribute('data-state');
+  }
+
+  function setTranscriptToggleLabel() {
+    if (!ui.transcriptToggleBtn) return;
+    if (!transcript.supported) {
+      ui.transcriptToggleBtn.textContent = 'Unavailable';
+      ui.transcriptToggleBtn.disabled = true;
+      ui.transcriptToggleBtn.setAttribute('aria-disabled', 'true');
+      ui.transcriptToggleBtn.setAttribute('aria-pressed', 'false');
+      return;
+    }
+    ui.transcriptToggleBtn.textContent = transcript.enabled ? 'Turn off' : 'Turn on';
+    ui.transcriptToggleBtn.setAttribute('aria-pressed', transcript.enabled ? 'true' : 'false');
+  }
+
+  function clearTranscriptOutput() {
+    if (!ui.transcriptOutput) return;
+    ui.transcriptOutput.innerHTML = '';
+    if (ui.transcriptPlaceholder) {
+      ui.transcriptOutput.appendChild(ui.transcriptPlaceholder);
+      ui.transcriptPlaceholder.hidden = false;
+    }
+    transcript.interimEl = null;
+  }
+
+  function hidePlaceholder() {
+    if (ui.transcriptPlaceholder) {
+      ui.transcriptPlaceholder.hidden = true;
+      if (ui.transcriptPlaceholder.parentNode === ui.transcriptOutput) {
+        ui.transcriptOutput.removeChild(ui.transcriptPlaceholder);
+      }
+    }
+  }
+
+  function appendFinal(text) {
+    if (!text || !text.trim()) return;
+    hidePlaceholder();
+    const span = document.createElement('span');
+    span.className = 'transcript__final';
+    span.textContent = (ui.transcriptOutput.childElementCount > 0 && !transcript.interimEl ? ' ' : '') + text.trim() + ' ';
+    if (transcript.interimEl && transcript.interimEl.parentNode === ui.transcriptOutput) {
+      ui.transcriptOutput.insertBefore(span, transcript.interimEl);
+    } else {
+      ui.transcriptOutput.appendChild(span);
+    }
+    autoScrollTranscript();
+  }
+
+  function setInterim(text) {
+    if (!ui.transcriptOutput) return;
+    if (!text) {
+      if (transcript.interimEl && transcript.interimEl.parentNode) {
+        transcript.interimEl.parentNode.removeChild(transcript.interimEl);
+      }
+      transcript.interimEl = null;
+      return;
+    }
+    hidePlaceholder();
+    if (!transcript.interimEl) {
+      transcript.interimEl = document.createElement('span');
+      transcript.interimEl.className = 'transcript__interim';
+      ui.transcriptOutput.appendChild(transcript.interimEl);
+    }
+    transcript.interimEl.textContent = text;
+    autoScrollTranscript();
+  }
+
+  function autoScrollTranscript() {
+    if (!ui.transcriptOutput || !ui.transcriptAutoscroll) return;
+    if (!ui.transcriptAutoscroll.checked) return;
+    ui.transcriptOutput.scrollTop = ui.transcriptOutput.scrollHeight;
+  }
+
+  function buildRecognition() {
+    if (!SpeechRecognitionCtor) return null;
+    const rec = new SpeechRecognitionCtor();
+    try { rec.continuous = true; } catch (_) {}
+    try { rec.interimResults = true; } catch (_) {}
+    try { rec.lang = 'en-US'; } catch (_) {}
+
+    rec.onstart = () => {
+      transcript.listening = true;
+      setTranscriptStatus('Listening', 'listening');
+    };
+    rec.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const text = result[0] && result[0].transcript ? result[0].transcript : '';
+        if (result.isFinal) {
+          appendFinal(text);
+        } else {
+          interim += text;
+        }
+      }
+      setInterim(interim);
+    };
+    rec.onerror = (event) => {
+      const err = event && event.error ? event.error : 'unknown';
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
+        transcript.enabled = false;
+        transcript.autoRestart = false;
+        setTranscriptStatus('Permission denied', 'error');
+        setTranscriptToggleLabel();
+      } else if (err === 'no-speech' || err === 'aborted') {
+        // benign; will end naturally
+      } else if (err === 'audio-capture') {
+        setTranscriptStatus('No microphone', 'error');
+      } else if (err === 'network') {
+        setTranscriptStatus('Network error', 'error');
+      } else {
+        setTranscriptStatus('Error: ' + err, 'error');
+      }
+    };
+    rec.onend = () => {
+      transcript.listening = false;
+      // Flush any lingering interim into the DOM as-is (don't promote to final).
+      if (transcript.enabled && transcript.autoRestart) {
+        // Continuous mode on iOS Safari often ends after a few seconds; restart.
+        try { rec.start(); setTranscriptStatus('Listening', 'listening'); }
+        catch (_) { setTranscriptStatus('On', 'on'); }
+      } else {
+        setTranscriptStatus('Off');
+      }
+    };
+    return rec;
+  }
+
+  function startTranscript() {
+    if (!transcript.supported) {
+      setTranscriptStatus('Unsupported', 'unsupported');
+      return;
+    }
+    if (!transcript.rec) transcript.rec = buildRecognition();
+    if (!transcript.rec) return;
+    transcript.enabled = true;
+    transcript.autoRestart = true;
+    setTranscriptToggleLabel();
+    try {
+      transcript.rec.start();
+      setTranscriptStatus('Starting\u2026', 'listening');
+    } catch (err) {
+      // start() throws if already started — treat as "on"
+      setTranscriptStatus('On', 'on');
+    }
+  }
+
+  function stopTranscript() {
+    transcript.enabled = false;
+    transcript.autoRestart = false;
+    setTranscriptToggleLabel();
+    if (transcript.rec && transcript.listening) {
+      try { transcript.rec.stop(); } catch (_) {}
+    }
+    setInterim('');
+    setTranscriptStatus('Off');
+  }
+
+  if (ui.transcriptToggleBtn) {
+    ui.transcriptToggleBtn.addEventListener('click', () => {
+      if (!transcript.supported) return;
+      if (transcript.enabled) stopTranscript();
+      else startTranscript();
+    });
+  }
+  if (ui.transcriptClearBtn) {
+    ui.transcriptClearBtn.addEventListener('click', () => {
+      clearTranscriptOutput();
+    });
+  }
+
+  // Initial state for transcript UI
+  if (!transcript.supported) {
+    setTranscriptStatus('Unsupported', 'unsupported');
+    if (ui.transcriptPlaceholder) {
+      ui.transcriptPlaceholder.textContent = 'Live transcript is not available in this browser.';
+    }
+  } else {
+    setTranscriptStatus('Off');
+  }
+  setTranscriptToggleLabel();
+
   // ---------- Audio engine ----------
   async function start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -412,6 +650,12 @@
     ui.toggle.setAttribute('aria-label', 'Stop Listening');
     ui.toggleLabel.textContent = 'Stop';
     setStatus('Listening', 'live');
+
+    // Auto-start transcript when listening begins, if supported and not already on.
+    // Uses a *separate* SpeechRecognition session — does not touch our Web Audio stream.
+    if (transcript.supported && !transcript.enabled) {
+      startTranscript();
+    }
 
     if (typeof audioCtx.outputLatency === 'number' || typeof audioCtx.baseLatency === 'number') {
       const ms = Math.round(((audioCtx.outputLatency || 0) + (audioCtx.baseLatency || 0)) * 1000);

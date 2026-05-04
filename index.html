@@ -42,11 +42,13 @@
           </span>
           <div class="step__body">
             <div class="step__title">Pair your headset</div>
-            <div class="step__desc">Connect your earbuds or hearing aids in <strong>iOS Settings → Bluetooth</strong>. Tap below once they're paired.</div>
+            <div class="step__desc">Connect your earbuds or hearing aids in <strong>iOS Settings → Bluetooth</strong>, then come back and confirm.</div>
             <div class="step__actions">
-              <button type="button" class="btn btn--step" id="pairConfirmBtn" data-testid="button-confirm-pair">Headset is paired</button>
+              <button type="button" class="btn btn--step btn--step-primary" id="openBtSettingsBtn" data-testid="button-open-bluetooth-settings">Open Bluetooth Settings</button>
+              <button type="button" class="btn btn--step" id="pairConfirmBtn" data-testid="button-confirm-pair">Headset is connected</button>
               <span class="step__status" id="pairStatus" data-testid="status-pair" aria-live="polite">Not confirmed</span>
             </div>
+            <p class="step__hint" data-testid="text-bluetooth-hint">If it does not open, go to <strong>Settings &gt; Bluetooth</strong> and connect your headset, then return here.</p>
           </div>
         </li>
         <li class="step" id="setupStepMic" data-testid="setup-step-mic" data-state="pending">
@@ -190,6 +192,30 @@
       </div>
     </section>
 
+    <!-- ===== Live transcript ===== -->
+    <section class="transcript" id="transcriptSection" data-testid="section-transcript" aria-labelledby="transcript-title">
+      <div class="transcript__head">
+        <div class="transcript__heading">
+          <h2 class="transcript__title" id="transcript-title">Live transcript</h2>
+          <span class="transcript__status" id="transcriptStatus" data-testid="text-transcript-status" aria-live="polite">Off</span>
+        </div>
+        <div class="transcript__controls">
+          <button type="button" class="btn btn--step" id="transcriptToggleBtn" data-testid="button-transcript-toggle" aria-pressed="false">Turn on</button>
+          <button type="button" class="btn btn--ghost btn--mini" id="transcriptClearBtn" data-testid="button-transcript-clear">Clear</button>
+          <label class="transcript__autoscroll">
+            <input type="checkbox" id="transcriptAutoscroll" data-testid="toggle-transcript-autoscroll" checked />
+            <span>Auto-scroll</span>
+          </label>
+        </div>
+      </div>
+      <div class="transcript__output" id="transcriptOutput" data-testid="text-transcript-output" role="log" aria-live="polite" aria-atomic="false">
+        <p class="transcript__placeholder" id="transcriptPlaceholder">Tap <em>Turn on</em> to start a live transcript on this device.</p>
+      </div>
+      <p class="transcript__privacy" data-testid="text-transcript-privacy">
+        Privacy note: unlike the audio enhancement above, browser speech recognition may send audio to Apple, Google, or other speech services depending on your browser. Audio enhancement still runs entirely on this device.
+      </p>
+    </section>
+
     <div class="footer-actions">
       <button type="button" class="link-btn link-btn--quiet" id="backToSetupBtn" data-testid="button-back-to-setup">
         Back to setup
@@ -213,7 +239,8 @@
       <div class="sheet__body">
         <details class="help" data-testid="details-privacy" open>
           <summary><span class="help__title">Privacy</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>Audio is processed <strong>only on this phone</strong>. Nothing is recorded, saved, or sent anywhere. Tap <em>Stop</em> or close the tab and the microphone is released.</p>
+          <p><strong>Audio enhancement</strong> is processed <strong>only on this phone</strong>. Nothing is recorded, saved, or sent anywhere. Tap <em>Stop</em> or close the tab and the microphone is released.</p>
+          <p><strong>Live transcript</strong> uses your browser's built-in speech recognition. Depending on the browser, audio may be sent to <strong>Apple, Google, or another speech service</strong> to be turned into text. The transcript itself stays on this device and is cleared when you tap <em>Clear</em> or leave the page. Turn the transcript off if you don't want speech sent off-device.</p>
         </details>
 
         <details class="help" data-testid="details-tips">
