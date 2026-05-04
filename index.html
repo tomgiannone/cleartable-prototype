@@ -246,16 +246,19 @@
         </select>
       </div>
 
-      <!-- Auto level voices: AGC / leveling toward target output -->
-      <div class="control control--switch" data-testid="control-auto-level">
+      <!-- Level voices evenly (AGC / leveling toward target output) -->
+      <div class="control" data-testid="control-auto-level">
         <div class="control__head">
-          <label for="autoLevelToggle">Auto level voices</label>
-          <span class="awake__switch control__switch">
-            <input type="checkbox" id="autoLevelToggle" data-testid="toggle-auto-level" checked />
-            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
-          </span>
+          <label for="autoLevelToggle" id="autoLevelLabel">Level voices evenly</label>
+          <span class="control__pill control__pill--strong" id="autoLevelHeadStatus" data-testid="text-auto-level-headline">Strong leveling on</span>
         </div>
-        <p class="control__hint">Quieter, farther voices come up; loud nearby voices get held back to a steady listening level. A built-in limiter prevents harsh clipping. <strong>Strong</strong> is recommended for restaurants.</p>
+        <p class="control__hint">Quieter, farther voices come up; loud nearby voices get held back to a steady listening level. A built-in limiter prevents harsh clipping. <strong>Strong</strong> is the default, recommended for restaurants.</p>
+        <div class="segctl" role="group" aria-labelledby="autoLevelLabel">
+          <button type="button" class="segctl__btn" id="autoLevelOnBtn" data-testid="button-auto-level-on" aria-pressed="true">Leveling: On</button>
+          <button type="button" class="segctl__btn" id="autoLevelOffBtn" data-testid="button-auto-level-off" aria-pressed="false">Off</button>
+        </div>
+        <!-- Hidden checkbox kept for backcompat / legacy data binding only. Do not use for tap interaction. -->
+        <input type="checkbox" id="autoLevelToggle" data-testid="toggle-auto-level" checked class="visually-hidden" aria-hidden="true" tabindex="-1" />
         <div class="control__sub">
           <label for="autoLevelStrength" class="control__sub-label">Strength</label>
           <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-auto-level" aria-label="Auto level strength" />
@@ -264,14 +267,25 @@
       </div>
 
       <!-- Reduce my voice: best-effort self-voice ducking with training -->
-      <div class="control control--switch" data-testid="control-self-voice">
+      <div class="control" data-testid="control-self-voice">
         <div class="control__head">
-          <label for="selfVoiceToggle">Reduce my voice</label>
-          <span class="awake__switch control__switch">
-            <input type="checkbox" id="selfVoiceToggle" data-testid="toggle-self-voice" />
-            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
-          </span>
+          <span id="selfVoiceLabel" class="control__label">Reduce my voice</span>
+          <span class="control__pill" id="selfVoiceHeadStatus" data-testid="text-self-voice-headline">Train first</span>
         </div>
+        <!-- Real, visible <button> control. Tap-safe on iPhone Safari. -->
+        <div class="segctl segctl--single" role="group" aria-labelledby="selfVoiceLabel">
+          <button type="button"
+                  class="segctl__btn segctl__btn--wide"
+                  id="selfVoiceToggleBtn"
+                  data-testid="button-self-voice-toggle"
+                  aria-pressed="false"
+                  aria-disabled="true"
+                  disabled>
+            My voice reduction: Train first
+          </button>
+        </div>
+        <!-- Hidden checkbox kept ONLY for backcompat with prior automation / data-testid='toggle-self-voice'. Do not interact with it. -->
+        <input type="checkbox" id="selfVoiceToggle" data-testid="toggle-self-voice" class="visually-hidden" aria-hidden="true" tabindex="-1" />
         <p class="control__hint">Best-effort: ducks the headset when very loud, near-mic speech matches your voice profile. Train once, then turn it on.</p>
         <p class="control__hint control__hint--limit"><strong>Honest limit:</strong> this is a web prototype. It cannot truly subtract one speaker from a single microphone the way a native on-device ML model could. Expect partial reduction, occasional false trips on similar voices, and short dips when you talk.</p>
         <div class="control__row">

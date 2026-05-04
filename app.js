@@ -85,9 +85,15 @@
     autoLevelToggle: $('autoLevelToggle'),
     autoLevelStrength: $('autoLevelStrength'),
     autoLevelStatus: $('autoLevelStatus'),
+    // v8 — segmented On/Off buttons + headline pill (tap-safe on iOS)
+    autoLevelOnBtn: $('autoLevelOnBtn'),
+    autoLevelOffBtn: $('autoLevelOffBtn'),
+    autoLevelHeadStatus: $('autoLevelHeadStatus'),
 
     // v5 — Reduce my voice (best-effort self-voice ducking)
-    selfVoiceToggle: $('selfVoiceToggle'),
+    selfVoiceToggle: $('selfVoiceToggle'),       // hidden checkbox kept for backcompat only
+    selfVoiceToggleBtn: $('selfVoiceToggleBtn'), // v8: real <button> tap target
+    selfVoiceHeadStatus: $('selfVoiceHeadStatus'),
     selfVoiceStrength: $('selfVoiceStrength'),
     selfVoiceStrengthVal: $('selfVoiceStrengthVal'),
     selfVoiceStatus: $('selfVoiceStatus'),
@@ -265,12 +271,37 @@
 
   // ---------- Auto-level + self-voice UI labels ----------
   function updateAutoLevelLabel() {
-    if (!ui.autoLevelStatus || !ui.autoLevelToggle) return;
-    const on = !!ui.autoLevelToggle.checked;
-    autoLevelOn = on;
-    autoLevelStrength = ui.autoLevelStrength ? Number(ui.autoLevelStrength.value) : 2;
+    // v8: canonical state lives in autoLevelOn. Hidden checkbox is mirrored
+    // for backcompat only. Real interaction happens via the segmented
+    // buttons (#autoLevelOnBtn / #autoLevelOffBtn) which are guaranteed-
+    // tappable on iPhone Safari.
+    if (!ui.autoLevelStatus) return;
+    autoLevelStrength = ui.autoLevelStrength ? Number(ui.autoLevelStrength.value) : 3;
     if (ui.autoLevelStrength) paintRange(ui.autoLevelStrength);
-    if (!on) {
+    // Mirror state to the hidden checkbox so existing data-testid hooks see it.
+    if (ui.autoLevelToggle && ui.autoLevelToggle.checked !== autoLevelOn) {
+      ui.autoLevelToggle.checked = autoLevelOn;
+    }
+    if (ui.autoLevelOnBtn) {
+      ui.autoLevelOnBtn.setAttribute('aria-pressed', autoLevelOn ? 'true' : 'false');
+    }
+    if (ui.autoLevelOffBtn) {
+      ui.autoLevelOffBtn.setAttribute('aria-pressed', autoLevelOn ? 'false' : 'true');
+    }
+    if (ui.autoLevelHeadStatus) {
+      if (!autoLevelOn) {
+        ui.autoLevelHeadStatus.textContent = 'Leveling off';
+        ui.autoLevelHeadStatus.setAttribute('data-state', 'off');
+        ui.autoLevelHeadStatus.classList.remove('control__pill--strong');
+      } else {
+        const label = STRENGTH_LABELS[autoLevelStrength] || 'Strong';
+        ui.autoLevelHeadStatus.textContent = label + ' leveling on';
+        ui.autoLevelHeadStatus.setAttribute('data-state', 'active');
+        if (autoLevelStrength === 3) ui.autoLevelHeadStatus.classList.add('control__pill--strong');
+        else ui.autoLevelHeadStatus.classList.remove('control__pill--strong');
+      }
+    }
+    if (!autoLevelOn) {
       ui.autoLevelStatus.textContent = 'Off';
       ui.autoLevelStatus.setAttribute('data-state', 'off');
       if (ui.autoLevelStrength) ui.autoLevelStrength.disabled = true;
@@ -298,23 +329,71 @@
       if (ui.selfVoiceStrengthVal) ui.selfVoiceStrengthVal.textContent = SELF_VOICE_STRENGTH_LABELS[s] || 'Strong';
     }
     if (!ui.selfVoiceStatus) return;
-    // Toggle wiring — set BEFORE writing status text so a brief race during
-    // training cannot leave the input in a stuck `disabled` state.
+
+    // v8: keep the legacy hidden checkbox in sync (data-testid='toggle-self-voice')
+    // for any external automation still relying on it. The user-facing tap target
+    // is the new <button id='selfVoiceToggleBtn'>; do NOT depend on the checkbox
+    // for interaction.
     if (ui.selfVoiceToggle) {
-      const shouldDisable = selfVoice.training || !selfVoice.trained;
-      ui.selfVoiceToggle.disabled = shouldDisable;
-      if (shouldDisable) {
-        ui.selfVoiceToggle.setAttribute('aria-disabled', 'true');
-      } else {
-        ui.selfVoiceToggle.removeAttribute('aria-disabled');
-      }
-      // Keep visual checked state synced to the truthful self-voice state.
-      // (Otherwise an iOS Safari paint glitch can leave the thumb stale.)
       const wantChecked = !!(selfVoice.trained && selfVoice.on);
       if (ui.selfVoiceToggle.checked !== wantChecked) {
         ui.selfVoiceToggle.checked = wantChecked;
       }
     }
+
+    // v8: drive the real <button> control. Disabled states fall back to a clear
+    // 'Train first' message so the user always sees what to do.
+    const btn = ui.selfVoiceToggleBtn;
+    const headPill = ui.selfVoiceHeadStatus;
+    if (btn) {
+      const trainingNow = !!selfVoice.training;
+      const trained = !!selfVoice.trained;
+      const on = !!selfVoice.on;
+      // Reset state attributes each pass.
+      btn.removeAttribute('data-state');
+      if (!trained && !trainingNow) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        btn.setAttribute('aria-pressed', 'false');
+        btn.textContent = 'My voice reduction: Train first';
+      } else if (trainingNow) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        btn.setAttribute('aria-pressed', 'false');
+        btn.setAttribute('data-state', 'training');
+        btn.textContent = 'My voice reduction: Training\u2026';
+      } else {
+        // Trained: enabled, real toggle.
+        btn.disabled = false;
+        btn.removeAttribute('aria-disabled');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        if (on) {
+          btn.setAttribute('data-state', 'active');
+          btn.textContent = 'My voice reduction: On (Active)';
+        } else {
+          btn.textContent = 'My voice reduction: Off';
+        }
+      }
+    }
+
+    // Headline pill at the top of the control: mirrors the button state at a glance.
+    if (headPill) {
+      headPill.classList.remove('control__pill--strong');
+      if (selfVoice.training) {
+        headPill.textContent = 'Training\u2026';
+        headPill.setAttribute('data-state', 'working');
+      } else if (!selfVoice.trained) {
+        headPill.textContent = 'Train first';
+        headPill.setAttribute('data-state', 'off');
+      } else if (selfVoice.on) {
+        headPill.textContent = 'Active';
+        headPill.setAttribute('data-state', 'active');
+      } else {
+        headPill.textContent = 'Off';
+        headPill.setAttribute('data-state', 'ok');
+      }
+    }
+
     if (selfVoice.training) {
       ui.selfVoiceStatus.textContent = 'Training\u2026';
       ui.selfVoiceStatus.setAttribute('data-state', 'working');
@@ -369,6 +448,8 @@
     if (ui.echoReductionToggle) ui.echoReductionToggle.checked = DEFAULTS.echoReduction;
     echoReductionOn = DEFAULTS.echoReduction;
     if (ui.autoLevelToggle) ui.autoLevelToggle.checked = DEFAULTS.autoLevel;
+    autoLevelOn = DEFAULTS.autoLevel;
+    autoLevelStrength = DEFAULTS.autoLevelStrength;
     if (ui.autoLevelStrength) ui.autoLevelStrength.value = String(DEFAULTS.autoLevelStrength);
     if (ui.selfVoiceToggle) {
       ui.selfVoiceToggle.checked = DEFAULTS.selfVoiceOn;
@@ -388,25 +469,63 @@
     }
   });
 
-  // ---------- v5: Auto level voices ----------
+  // ---------- v5/v8: Auto level voices ("Level voices evenly") ----------
+  // v8: real <button> segmented control. Hidden checkbox kept for backcompat.
   if (ui.autoLevelToggle) {
-    ui.autoLevelToggle.addEventListener('change', updateAutoLevelLabel);
+    ui.autoLevelToggle.addEventListener('change', () => {
+      autoLevelOn = !!ui.autoLevelToggle.checked;
+      updateAutoLevelLabel();
+    });
+  }
+  if (ui.autoLevelOnBtn) {
+    // 'click' fires reliably for <button> on iPhone Safari; no pointerup tricks.
+    ui.autoLevelOnBtn.addEventListener('click', () => {
+      autoLevelOn = true;
+      if (ui.autoLevelToggle) ui.autoLevelToggle.checked = true;
+      updateAutoLevelLabel();
+    });
+  }
+  if (ui.autoLevelOffBtn) {
+    ui.autoLevelOffBtn.addEventListener('click', () => {
+      autoLevelOn = false;
+      if (ui.autoLevelToggle) ui.autoLevelToggle.checked = false;
+      updateAutoLevelLabel();
+    });
   }
   if (ui.autoLevelStrength) {
     ui.autoLevelStrength.addEventListener('input', updateAutoLevelLabel);
   }
 
-  // ---------- v5: Reduce my voice ----------
+  // ---------- v5/v8: Reduce my voice ----------
+  // v8: the new <button id='selfVoiceToggleBtn'> is the canonical tap target.
+  // It's a real <button> (not a hidden checkbox under a decorative thumb), so
+  // iPhone Safari delivers the click reliably. The legacy hidden checkbox is
+  // kept for backcompat with any existing automation that selects on
+  // data-testid='toggle-self-voice', but we do NOT depend on it for taps.
+  if (ui.selfVoiceToggleBtn) {
+    ui.selfVoiceToggleBtn.addEventListener('click', () => {
+      if (!selfVoice.trained || selfVoice.training) {
+        // Disabled state — should not fire, but defend just in case.
+        selfVoice.on = false;
+        updateSelfVoiceLabels();
+        return;
+      }
+      selfVoice.on = !selfVoice.on;
+      // Reset duck so we don't carry stale state.
+      selfVoiceDuck = 1;
+      // Keep hidden checkbox mirrored for backcompat.
+      if (ui.selfVoiceToggle) ui.selfVoiceToggle.checked = selfVoice.on;
+      updateSelfVoiceLabels();
+    });
+  }
+  // Backcompat: still listen on the hidden checkbox in case external
+  // automation flips it directly. Real users never touch it.
   if (ui.selfVoiceToggle) {
     ui.selfVoiceToggle.addEventListener('change', () => {
       if (!selfVoice.trained) {
-        // Defensive: if a stale event arrives before training completes,
-        // force the input back to its real (off) state instead of leaving
-        // it half-on with no profile behind it.
         selfVoice.on = false;
       } else {
         selfVoice.on = !!ui.selfVoiceToggle.checked;
-        // Reset duck so we don't carry stale state.
         selfVoiceDuck = 1;
       }
       updateSelfVoiceLabels();
@@ -2241,4 +2360,33 @@
   }
 
   updateContinueState();
+
+  // ---- v8 dev hook (only when ?devhook=1 is in the URL) ----
+  // Exposes a tiny surface so headless smoke tests can simulate post-training
+  // and verify the new tap-safe self-voice button toggles real state. Has no
+  // effect in production usage — only activates when explicitly requested.
+  try {
+    const params = new URL(window.location.href).searchParams;
+    if (params.get('devhook') === '1') {
+      window.__cleartableDevhook = {
+        // Pretend training succeeded; flip selfVoice.trained + selfVoice.on.
+        mockTrainComplete() {
+          selfVoice.training = false;
+          selfVoice.trained = true;
+          selfVoice.profile = { rmsMean: 0.05, rmsPeak: 0.15, centroidMean: 1500, centroidStd: 100 };
+          selfVoice.on = true;
+          if (ui.selfVoiceToggle) ui.selfVoiceToggle.checked = true;
+          updateSelfVoiceLabels();
+        },
+        getState() {
+          return {
+            selfVoiceOn: selfVoice.on,
+            selfVoiceTrained: selfVoice.trained,
+            autoLevelOn,
+            autoLevelStrength,
+          };
+        },
+      };
+    }
+  } catch (_) {}
 })();

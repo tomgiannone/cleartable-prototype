@@ -1122,3 +1122,109 @@ input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offs
   color: var(--text-faint, #8ea0b3);
   margin-top: -4px;
 }
+
+/* ===================== v8: Tap-safe segmented controls ===================== */
+/* Real <button> based on/off control. Replaces the hidden-checkbox+thumb
+   pattern that iPhone Safari sometimes refused to register taps on. No
+   pointer-event tricks, no overlay — every tap target is an actual button. */
+.segctl {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  width: 100%;
+}
+.segctl--single { display: block; }
+.segctl__btn {
+  flex: 1 1 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: var(--tap, 44px);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* Make sure nothing in front of the button can swallow the tap. */
+  position: relative;
+  z-index: 1;
+  touch-action: manipulation;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .08s ease;
+}
+.segctl__btn:active { transform: scale(.99); }
+.segctl__btn--wide { width: 100%; }
+.segctl__btn[aria-pressed="true"] {
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: var(--accent-ink);
+  border-color: rgba(0,0,0,.2);
+}
+.segctl__btn:disabled,
+.segctl__btn[aria-disabled="true"] {
+  opacity: .55;
+  cursor: not-allowed;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+.segctl__btn[data-state="training"] {
+  border-color: var(--warn, #d3a32a);
+  color: var(--text);
+}
+.segctl__btn[data-state="active"] {
+  /* When self-voice is trained + on, button reads "Active" — keep solid accent */
+}
+
+/* Status pill in the control head: condenses long status text into a pill. */
+.control__pill {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: var(--surface-3, rgba(255,255,255,0.05));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+.control__pill--strong {
+  color: var(--accent-ink);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-color: rgba(0,0,0,.2);
+}
+.control__pill[data-state="off"] {
+  color: var(--text-dim);
+  background: var(--surface-3, rgba(255,255,255,0.05));
+  border-color: var(--border);
+}
+.control__pill[data-state="working"] {
+  color: var(--warn, #d3a32a);
+  border-color: var(--warn, #d3a32a);
+  background: transparent;
+}
+.control__pill[data-state="active"] {
+  color: var(--accent-ink);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-color: rgba(0,0,0,.2);
+}
+.control__pill[data-state="ok"] {
+  color: var(--text);
+  background: transparent;
+  border-color: var(--border-strong, rgba(255,255,255,0.18));
+}
+.control__pill[data-state="warn"] {
+  color: var(--warn, #d3a32a);
+  border-color: var(--warn, #d3a32a);
+  background: transparent;
+}
+
+.control__label {
+  font-size: 15.5px;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
