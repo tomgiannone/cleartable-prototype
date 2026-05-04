@@ -144,7 +144,10 @@
         <span class="awake__status" id="awakeStatus" data-testid="status-wake-lock" aria-live="polite">Off</span>
       </div>
       <p class="warn warn--awake" id="awakeWarn" data-testid="warning-wake-lock" hidden>
-        Your phone may dim and pause sound. If the screen still locks, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you use ClearTable.
+        <strong>If your iPhone still sleeps,</strong> iOS is blocking web keep-awake.
+        Set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while testing,
+        then change it back afterwards. Also disable <strong>Low Power Mode</strong> and keep Safari in the foreground.
+        <button type="button" class="link-btn link-btn--inline" id="awakeOpenAutoLockBtn" data-testid="button-open-autolock">Open Display &amp; Brightness</button>
       </p>
 
       <!-- Microphone source picker -->
@@ -163,6 +166,27 @@
         <p class="warn warn--mic" id="micSourceWarn" data-testid="warning-mic-source" hidden>
           A Bluetooth headset microphone is being used. iOS may force the headset mic when a headset is connected, which can sound thin and pick up your own voice. Try selecting an iPhone microphone above. If only the headset is offered, this is a web limitation — a native iOS app is needed for reliable phone-mic-to-headset routing.
         </p>
+      </div>
+
+      <!-- Echo / room reduction quick toggle + calibrate button -->
+      <div class="quickrow" data-testid="control-quickrow">
+        <label class="quickrow__toggle" for="echoReductionToggle">
+          <span class="quickrow__toggle-label">
+            <span class="quickrow__toggle-title">Echo / room reduction</span>
+            <span class="quickrow__toggle-sub">Reduces room sound and reverb</span>
+          </span>
+          <span class="awake__switch">
+            <input type="checkbox" id="echoReductionToggle" data-testid="toggle-echo-reduction" checked />
+            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
+          </span>
+        </label>
+        <div class="quickrow__cal">
+          <button type="button" class="btn btn--ghost btn--mini" id="calibrateBtn" data-testid="button-calibrate-noise" aria-label="Calibrate room noise">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M3 12 L7 12 L9 6 L12 18 L15 9 L17 12 L21 12"/></svg>
+            Calibrate room noise
+          </button>
+          <span class="quickrow__cal-status" id="calibrationStatus" data-testid="status-calibration" aria-live="polite">Hold quiet for 2 seconds, then tap.</span>
+        </div>
       </div>
 
       <button id="toggle" class="bigbtn" data-testid="button-toggle" aria-pressed="false" aria-label="Start Listening">
@@ -202,22 +226,24 @@
 
       <div class="control" data-testid="control-noise">
         <div class="control__head">
-          <label for="gate">Noise Reduction</label>
-          <span class="control__val" id="gateVal" data-testid="text-gate-value">−55 dB</span>
+          <label for="gate">Background Noise Reduction</label>
+          <span class="control__val" id="gateVal" data-testid="text-gate-value">High</span>
         </div>
-        <input id="gate" type="range" min="-80" max="-20" step="1" value="-55" data-testid="slider-gate" aria-label="Background Noise Reduction" />
+        <input id="gate" type="range" min="-80" max="-20" step="1" value="-48" data-testid="slider-gate" aria-label="Background Noise Reduction" />
+        <p class="control__hint">Tip: tap <em>Calibrate room noise</em> above to set this for the room you're in.</p>
       </div>
 
       <div class="control" data-testid="control-clarity">
         <div class="control__head">
           <label for="clarity">Voice Clarity</label>
-          <span class="control__val" id="clarityVal" data-testid="text-clarity-value">Balanced</span>
+          <span class="control__val" id="clarityVal" data-testid="text-clarity-value">Restaurant</span>
         </div>
-        <input id="clarity" type="range" min="0" max="3" step="1" value="1" data-testid="slider-clarity" aria-label="Voice Clarity" />
+        <input id="clarity" type="range" min="0" max="4" step="1" value="2" data-testid="slider-clarity" aria-label="Voice Clarity" />
         <!-- hidden select kept for legacy data binding; values map from clarity slider -->
         <select id="preset" data-testid="select-preset" class="visually-hidden" aria-hidden="true" tabindex="-1">
           <option value="warm">Warmer</option>
-          <option value="balanced" selected>Balanced</option>
+          <option value="balanced">Balanced</option>
+          <option value="restaurant" selected>Restaurant</option>
           <option value="bright">Brighter</option>
           <option value="aggressive">Strong</option>
         </select>
@@ -278,7 +304,14 @@
         <details class="help" data-testid="details-keep-awake">
           <summary><span class="help__title">Keep your phone awake</span><span class="help__chev" aria-hidden="true"></span></summary>
           <p>iPhones dim and lock after a short idle period, which can pause Safari and cut off the sound. ClearTable asks the browser to <strong>keep the screen awake</strong> while you're listening, using a small toggle near the status above. It also runs a tiny invisible looping video as a backup — a trick that helps on older iOS or in Low Power Mode.</p>
-          <p>If the screen still locks, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you're at the table, then change it back afterward. Disable <strong>Low Power Mode</strong> and keep Safari in the foreground.</p>
+          <p><strong>If your iPhone still sleeps while testing, that's iOS blocking web keep-awake.</strong> The web cannot fully fix this. The only reliable workaround:</p>
+          <ol class="help__list">
+            <li>Open <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong>.</li>
+            <li>Set it to <strong>Never</strong> while you're using ClearTable.</li>
+            <li>Change it back afterwards.</li>
+          </ol>
+          <p>Also: disable <strong>Low Power Mode</strong>, keep Safari in the foreground, and don't switch apps. A native iOS app would not have this restriction — this is a Safari/web-platform limitation, not a ClearTable bug.</p>
+          <p><button type="button" class="btn btn--ghost btn--mini" id="helpOpenAutoLockBtn" data-testid="button-help-open-autolock">Open Display &amp; Brightness</button></p>
         </details>
 
         <details class="help" data-testid="details-mic-source">

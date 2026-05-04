@@ -13,11 +13,13 @@
 
   const $ = (id) => document.getElementById(id);
 
-  // Map slider position 0..3 → preset key
-  const CLARITY_VALUES = ['warm', 'balanced', 'bright', 'aggressive'];
+  // Map slider position 0..4 → preset key. "Restaurant" is the default and
+  // sits in the middle as the recommended choice for noisy rooms.
+  const CLARITY_VALUES = ['warm', 'balanced', 'restaurant', 'bright', 'aggressive'];
   const CLARITY_LABELS = {
     warm: 'Warmer',
     balanced: 'Balanced',
+    restaurant: 'Restaurant',
     bright: 'Brighter',
     aggressive: 'Strong',
     bypass: 'Off',
@@ -64,6 +66,15 @@
     clarity: $('clarity'),
     clarityVal: $('clarityVal'),
     preset: $('preset'),
+
+    // Quick row: echo reduction + calibrate
+    echoReductionToggle: $('echoReductionToggle'),
+    calibrateBtn: $('calibrateBtn'),
+    calibrationStatus: $('calibrationStatus'),
+
+    // Auto-Lock shortcuts
+    awakeOpenAutoLockBtn: $('awakeOpenAutoLockBtn'),
+    helpOpenAutoLockBtn: $('helpOpenAutoLockBtn'),
 
     // Sheet
     infoBtn: $('infoBtn'),
@@ -112,15 +123,38 @@
   let micPermissionGranted = false;
   const setupState = { pair: false, mic: false, place: false };
 
-  const DEFAULTS = { gain: 6, gate: -55, clarity: 1 /* balanced */ };
+  // Default tuning targets a noisy restaurant room: stronger gate, lower
+  // makeup gain (so users don't crank it and pump the room), Restaurant
+  // preset selected, echo reduction ON.
+  const DEFAULTS = { gain: 4, gate: -48, clarity: 2 /* restaurant */, echoReduction: true };
 
+  // Each preset describes a five-band EQ + dynamics settings:
+  //   presence: 1.5–3 kHz peak gain (consonant intelligibility)
+  //   air:      6.5 kHz high-shelf gain (‘sparkle’)
+  //   lowCut:   high-pass corner (rumble + plosive control)
+  //   lowMid:   ~280 Hz peaking gain (mud / boxiness control)
+  //   highCut:  low-pass corner (plate-clatter / harshness)
+  //   comp/ratio/knee/release: DynamicsCompressor
+  //   gateThreshold: starting suggestion for the noise gate (dB)
+  //
+  // Restaurant is intentionally tighter than Balanced: the lowMid is more
+  // negative to peel out room boom, the highCut is lower to tame plate
+  // clatter, the air is reduced to avoid harshness, and the compressor
+  // uses a softer knee + slower release so it pumps less under chatter.
   const PRESETS = {
-    balanced:   { presence: 4,  air: 1.5, lowCut: 110, highCut: 7500, comp: -22, ratio: 4 },
-    bright:     { presence: 7,  air: 3,   lowCut: 130, highCut: 8500, comp: -24, ratio: 5 },
-    warm:       { presence: 2,  air: -2,  lowCut: 110, highCut: 6500, comp: -22, ratio: 4 },
-    aggressive: { presence: 6,  air: 2,   lowCut: 160, highCut: 7500, comp: -28, ratio: 8 },
-    bypass:     { presence: 0,  air: 0,   lowCut: 20,  highCut: 20000, comp: 0,  ratio: 1 },
+    warm:       { presence: 2,    air: -2,   lowCut: 110, lowMid: -3, highCut: 6500, comp: -22, ratio: 4, knee: 18, release: 0.12, gateThreshold: -55 },
+    balanced:   { presence: 4,    air: 1.5,  lowCut: 110, lowMid: -3, highCut: 7500, comp: -22, ratio: 4, knee: 18, release: 0.12, gateThreshold: -55 },
+    restaurant: { presence: 4.5,  air: -1,   lowCut: 150, lowMid: -5, highCut: 6800, comp: -26, ratio: 3.2, knee: 24, release: 0.20, gateThreshold: -48 },
+    bright:     { presence: 7,    air: 3,    lowCut: 130, lowMid: -3, highCut: 8500, comp: -24, ratio: 5, knee: 18, release: 0.12, gateThreshold: -55 },
+    aggressive: { presence: 6,    air: 2,    lowCut: 160, lowMid: -4, highCut: 7500, comp: -28, ratio: 8, knee: 14, release: 0.10, gateThreshold: -45 },
+    bypass:     { presence: 0,    air: 0,    lowCut: 20,  lowMid: 0,  highCut: 20000, comp: 0,  ratio: 1, knee: 0,  release: 0.25, gateThreshold: -80 },
   };
+
+  // Echo / room reduction adds an extra mid-cut + tighter highpass + a
+  // touch more presence dip to reduce reverberant tail. We toggle it by
+  // adjusting nodes.lowMidCut2 (a second peaking band around 500 Hz) and
+  // by sliding the highpass corner up by ~30 Hz when ON.
+  let echoReductionOn = true;
 
   // ---------- Slider visual progress (CSS var) ----------
   function paintRange(el) {
@@ -141,16 +175,21 @@
     paintRange(ui.gain);
   }
   function updateGateLabel() {
-    // Display as user-friendly label, plus dB
+    // Display as user-friendly label. "High" is the typical restaurant default;
+    // "Max" is reserved for the most aggressive cut so users know they don't
+    // have to peg the slider to get aggressive reduction.
     const v = Number(ui.gate.value);
     let level = 'Medium';
-    if (v <= -60) level = 'Low';
-    else if (v >= -45) level = 'High';
-    ui.gateVal.textContent = `${level}`;
+    if (v <= -65) level = 'Low';
+    else if (v <= -55) level = 'Medium';
+    else if (v <= -42) level = 'High';
+    else if (v <= -30) level = 'Very High';
+    else level = 'Max';
+    ui.gateVal.textContent = level;
     paintRange(ui.gate);
   }
   function clarityKey() {
-    const idx = Math.max(0, Math.min(3, Number(ui.clarity.value)));
+    const idx = Math.max(0, Math.min(CLARITY_VALUES.length - 1, Number(ui.clarity.value)));
     return CLARITY_VALUES[idx];
   }
   function updateClarityLabel() {
@@ -182,14 +221,49 @@
     ui.gain.value = DEFAULTS.gain;
     ui.gate.value = DEFAULTS.gate;
     ui.clarity.value = DEFAULTS.clarity;
+    if (ui.echoReductionToggle) ui.echoReductionToggle.checked = DEFAULTS.echoReduction;
+    echoReductionOn = DEFAULTS.echoReduction;
     updateGainLabel();
     updateGateLabel();
     updateClarityLabel();
+    setCalibrationStatus('Hold quiet for 2 seconds, then tap.', '');
     if (nodes) {
       applyPreset();
       applyMakeupGain();
+      applyEchoReduction();
     }
   });
+
+  // ---------- Echo / room reduction quick toggle ----------
+  if (ui.echoReductionToggle) {
+    ui.echoReductionToggle.addEventListener('change', () => {
+      echoReductionOn = !!ui.echoReductionToggle.checked;
+      if (nodes) applyEchoReduction();
+    });
+  }
+
+  // ---------- Auto-Lock shortcut buttons ----------
+  // iOS deep-links are unofficial; we attempt the App-Prefs scheme but the
+  // UI also explains the manual path so users aren't stranded.
+  function tryOpenAutoLock() {
+    const ua = (navigator.userAgent || '').toLowerCase();
+    const isIOS = /iphone|ipad|ipod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!isIOS) return;
+    const tryScheme = (url) => {
+      try {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'display:none;width:0;height:0;border:0;';
+        f.src = url;
+        document.body.appendChild(f);
+        setTimeout(() => { try { f.remove(); } catch (_) {} }, 1500);
+      } catch (_) { /* ignore */ }
+    };
+    tryScheme('App-Prefs:root=DISPLAY');
+    setTimeout(() => tryScheme('prefs:root=DISPLAY'), 250);
+  }
+  if (ui.awakeOpenAutoLockBtn) ui.awakeOpenAutoLockBtn.addEventListener('click', tryOpenAutoLock);
+  if (ui.helpOpenAutoLockBtn) ui.helpOpenAutoLockBtn.addEventListener('click', tryOpenAutoLock);
 
   // ---------- Screens & sheet ----------
   function showMain() {
@@ -582,6 +656,13 @@
     videoActive: false,
   };
 
+  // Detect iOS for a few platform-specific bits (warning copy, fallback).
+  const IS_IOS_UA = (() => {
+    const ua = (navigator.userAgent || '').toLowerCase();
+    return /iphone|ipad|ipod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  })();
+
   // Tiny silent looping MP4 (h264 + aac) — public-domain payload from the
   // NoSleep.js project, embedded so we have no external dependency.
   // Source: https://github.com/richtr/NoSleep.js (Apache-2.0). The asset is a
@@ -615,7 +696,10 @@
           setTimeout(() => {
             if (running && wake.enabled && !wake.sentinel) {
               setAwakeStatus('On (fallback)', 'on');
-              showAwakeWarn(false);
+              // The video fallback on iPhone is unreliable in Low Power
+              // Mode and on older iOS — surface the Auto-Lock
+              // instructions so the user has a sure-fire fix.
+              showAwakeWarn(IS_IOS_UA);
             }
           }, 60);
         }).catch(() => { wake.videoActive = false; });
@@ -687,6 +771,9 @@
         if (running && wake.enabled) {
           // Sentinel released — fall back to the video keep-awake.
           setAwakeStatus(wake.videoActive ? 'On (fallback)' : 'Paused', wake.videoActive ? 'on' : 'paused');
+          // Sentinel was released while listening — on iPhone this means
+          // iOS likely won't honour wake-lock until Auto-Lock is set to Never.
+          if (IS_IOS_UA) showAwakeWarn(true);
         } else {
           setAwakeStatus('Off');
         }
@@ -981,6 +1068,9 @@
     highPass.type = 'highpass'; highPass.Q.value = 0.707;
     const lowMidCut = audioCtx.createBiquadFilter();
     lowMidCut.type = 'peaking'; lowMidCut.frequency.value = 280; lowMidCut.Q.value = 1.0; lowMidCut.gain.value = -3;
+    // Second ‘room’ cut around 500 Hz — only active when echo reduction is ON.
+    const lowMidCut2 = audioCtx.createBiquadFilter();
+    lowMidCut2.type = 'peaking'; lowMidCut2.frequency.value = 500; lowMidCut2.Q.value = 1.4; lowMidCut2.gain.value = 0;
     const presence = audioCtx.createBiquadFilter();
     presence.type = 'peaking'; presence.frequency.value = 2500; presence.Q.value = 1.1;
     const air = audioCtx.createBiquadFilter();
@@ -989,9 +1079,9 @@
     lowPass.type = 'lowpass'; lowPass.Q.value = 0.707;
 
     const comp = audioCtx.createDynamicsCompressor();
-    comp.attack.value = 0.005;
-    comp.release.value = 0.12;
-    comp.knee.value = 18;
+    comp.attack.value = 0.006;
+    comp.release.value = 0.20;
+    comp.knee.value = 24;
 
     const gate = audioCtx.createGain();
     gate.gain.value = 0;
@@ -1012,7 +1102,8 @@
 
     src.connect(highPass);
     highPass.connect(lowMidCut);
-    lowMidCut.connect(presence);
+    lowMidCut.connect(lowMidCut2);
+    lowMidCut2.connect(presence);
     presence.connect(air);
     air.connect(lowPass);
     lowPass.connect(comp);
@@ -1024,10 +1115,11 @@
     meter.connect(muteSink);
     muteSink.connect(audioCtx.destination);
 
-    nodes = { src, highPass, lowMidCut, presence, air, lowPass, comp, gate, sidechain, makeup, meter, muteSink };
+    nodes = { src, highPass, lowMidCut, lowMidCut2, presence, air, lowPass, comp, gate, sidechain, makeup, meter, muteSink };
 
     applyPreset();
     applyMakeupGain();
+    applyEchoReduction();
 
     running = true;
     ui.toggle.classList.add('is-live');
@@ -1097,7 +1189,7 @@
   function applyPreset() {
     if (!nodes || !audioCtx) return;
     const key = clarityKey();
-    const p = PRESETS[key] || PRESETS.balanced;
+    const p = PRESETS[key] || PRESETS.restaurant;
     const t = audioCtx.currentTime;
     const ramp = 0.05;
 
@@ -1105,10 +1197,161 @@
     nodes.lowPass.frequency.linearRampToValueAtTime(p.highCut, t + ramp);
     nodes.presence.gain.linearRampToValueAtTime(p.presence, t + ramp);
     nodes.air.gain.linearRampToValueAtTime(p.air, t + ramp);
-    nodes.lowMidCut.gain.linearRampToValueAtTime(p === PRESETS.bypass ? 0 : -3, t + ramp);
+    nodes.lowMidCut.gain.linearRampToValueAtTime(p === PRESETS.bypass ? 0 : (p.lowMid != null ? p.lowMid : -3), t + ramp);
 
     nodes.comp.threshold.linearRampToValueAtTime(p.comp, t + ramp);
     nodes.comp.ratio.linearRampToValueAtTime(p.ratio, t + ramp);
+    if (typeof p.knee === 'number') {
+      try { nodes.comp.knee.linearRampToValueAtTime(p.knee, t + ramp); } catch (_) {}
+    }
+    if (typeof p.release === 'number') {
+      try { nodes.comp.release.linearRampToValueAtTime(p.release, t + ramp); } catch (_) {}
+    }
+
+    // Re-apply echo reduction since lowMid bands depend on the active preset.
+    applyEchoReduction();
+  }
+
+  // ---------- Calibrate room noise ----------
+  // Samples ambient mic level for ~2 seconds (while user is quiet) and sets
+  // the noise gate threshold ~6 dB above the measured floor. We re-use the
+  // existing audio chain when running; otherwise we open a short-lived test
+  // stream just for measurement.
+  const calibration = { running: false };
+
+  function setCalibrationStatus(text, state) {
+    if (!ui.calibrationStatus) return;
+    ui.calibrationStatus.textContent = text;
+    if (state) ui.calibrationStatus.setAttribute('data-state', state);
+    else ui.calibrationStatus.removeAttribute('data-state');
+    if (ui.calibrateBtn) {
+      if (state === 'working') {
+        ui.calibrateBtn.setAttribute('data-state', 'working');
+        ui.calibrateBtn.setAttribute('aria-busy', 'true');
+      } else {
+        ui.calibrateBtn.removeAttribute('data-state');
+        ui.calibrateBtn.removeAttribute('aria-busy');
+      }
+    }
+  }
+
+  async function runCalibration() {
+    if (calibration.running) return;
+    calibration.running = true;
+    if (ui.calibrateBtn) ui.calibrateBtn.disabled = true;
+
+    let tempStream = null;
+    let tempCtx = null;
+    let tempAnalyser = null;
+    let usingExisting = false;
+
+    try {
+      if (running && nodes && audioCtx) {
+        // Use the live sidechain analyser — no extra stream needed.
+        tempAnalyser = nodes.sidechain;
+        usingExisting = true;
+      } else {
+        // Need permission first; this also forces iOS to surface labels.
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Microphone API not available');
+        }
+        setCalibrationStatus('Asking for microphone\u2026', 'working');
+        tempStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+          video: false,
+        });
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        tempCtx = new Ctx({ latencyHint: 'interactive' });
+        if (tempCtx.state === 'suspended') {
+          try { await tempCtx.resume(); } catch (_) {}
+        }
+        const src = tempCtx.createMediaStreamSource(tempStream);
+        tempAnalyser = tempCtx.createAnalyser();
+        tempAnalyser.fftSize = 1024;
+        tempAnalyser.smoothingTimeConstant = 0.4;
+        src.connect(tempAnalyser);
+      }
+
+      // Sample for ~2 seconds. Take RMS frames every ~50 ms and use the
+      // 75th-percentile RMS so a single cough doesn't blow the floor up.
+      const buf = new Float32Array(tempAnalyser.fftSize);
+      const samples = [];
+      const startMs = performance.now();
+      const totalMs = 2000;
+      // small lead-in so the user sees the prompt before we measure
+      setCalibrationStatus('Hold still for 2 seconds\u2026', 'working');
+      await new Promise((r) => setTimeout(r, 250));
+
+      while (performance.now() - startMs < totalMs) {
+        tempAnalyser.getFloatTimeDomainData(buf);
+        let sumSq = 0;
+        for (let i = 0; i < buf.length; i++) sumSq += buf[i] * buf[i];
+        const rms = Math.sqrt(sumSq / buf.length);
+        samples.push(rms);
+        const elapsed = performance.now() - startMs;
+        const remaining = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+        setCalibrationStatus('Sampling\u2026 ' + remaining + 's', 'working');
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      if (!samples.length) throw new Error('No samples collected');
+      samples.sort((a, b) => a - b);
+      const p75 = samples[Math.min(samples.length - 1, Math.floor(samples.length * 0.75))];
+      const floorDb = p75 > 0 ? 20 * Math.log10(p75) : -100;
+      // Set gate threshold ~6 dB above the noise floor, clamped to slider range.
+      let target = Math.round(floorDb + 6);
+      const minVal = Number(ui.gate.min);
+      const maxVal = Number(ui.gate.max);
+      if (target < minVal) target = minVal;
+      if (target > maxVal) target = maxVal;
+
+      ui.gate.value = String(target);
+      updateGateLabel();
+
+      const levelText = ui.gateVal.textContent;
+      setCalibrationStatus(
+        'Set to ' + levelText + ' (floor ' + Math.round(floorDb) + ' dB)',
+        'ok'
+      );
+    } catch (err) {
+      console.warn('Calibration failed:', err);
+      const name = err && err.name ? err.name : '';
+      let msg = 'Calibration failed';
+      if (name === 'NotAllowedError' || name === 'SecurityError') msg = 'Microphone permission needed';
+      else if (name === 'NotFoundError') msg = 'No microphone found';
+      else if (name === 'NotReadableError') msg = 'Microphone is busy';
+      setCalibrationStatus(msg, 'error');
+    } finally {
+      // Tear down the temp graph if we made one. Don't touch the live one.
+      if (!usingExisting) {
+        try { if (tempStream) tempStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+        try { if (tempCtx) tempCtx.close(); } catch (_) {}
+      }
+      calibration.running = false;
+      if (ui.calibrateBtn) ui.calibrateBtn.disabled = false;
+    }
+  }
+
+  if (ui.calibrateBtn) {
+    ui.calibrateBtn.addEventListener('click', () => { runCalibration(); });
+  }
+
+  // Apply (or unapply) the extra room/echo damping band + tighter highpass.
+  function applyEchoReduction() {
+    if (!nodes || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    const ramp = 0.06;
+    const key = clarityKey();
+    const p = PRESETS[key] || PRESETS.restaurant;
+    if (echoReductionOn && p !== PRESETS.bypass) {
+      // Cut ~500 Hz (room boom / boxiness) and lift highpass by ~30 Hz to
+      // shave the lowest reverberant tail without thinning vowels.
+      try { nodes.lowMidCut2.gain.linearRampToValueAtTime(-3.5, t + ramp); } catch (_) {}
+      try { nodes.highPass.frequency.linearRampToValueAtTime(p.lowCut + 30, t + ramp); } catch (_) {}
+    } else {
+      try { nodes.lowMidCut2.gain.linearRampToValueAtTime(0, t + ramp); } catch (_) {}
+      try { nodes.highPass.frequency.linearRampToValueAtTime(p.lowCut, t + ramp); } catch (_) {}
+    }
   }
 
   function applyMakeupGain() {

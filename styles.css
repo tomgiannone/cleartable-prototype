@@ -866,3 +866,99 @@ input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offs
   text-align: left;
   margin: 0;
 }
+
+/* ===================== Quick row: echo toggle + calibrate ===================== */
+.quickrow {
+  width: min(560px, 100%);
+  margin: 0 auto 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.09);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.quickrow__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.quickrow__toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.quickrow__toggle-title {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+}
+.quickrow__toggle-sub {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+.quickrow__cal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.quickrow__cal .btn--mini { flex: 0 0 auto; }
+.quickrow__cal-status {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: right;
+}
+.quickrow__cal-status[data-state="working"] {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+.quickrow__cal-status[data-state="ok"] {
+  color: var(--ok);
+  font-weight: 600;
+}
+.quickrow__cal-status[data-state="error"] {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* Pulse the calibrate button while sampling */
+@keyframes ct-cal-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(105, 214, 197, 0.55); }
+  50%      { box-shadow: 0 0 0 8px rgba(105, 214, 197, 0); }
+}
+.btn[data-state="working"] {
+  animation: ct-cal-pulse 1.2s ease-in-out infinite;
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn[data-state="working"] { animation: none; }
+}
+
+/* Slider hint under control */
+.control__hint {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* Inline link button used inside the wake-lock warning */
+.link-btn--inline {
+  display: inline;
+  padding: 0;
+  margin-left: 4px;
+  text-decoration: underline;
+  font-size: inherit;
+  color: inherit;
+}
