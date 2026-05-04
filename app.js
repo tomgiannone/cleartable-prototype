@@ -71,6 +71,12 @@
     sheetScrim: $('sheetScrim'),
     sheetClose: $('sheetClose'),
 
+    // Wake lock
+    awake: $('awake'),
+    awakeToggle: $('awakeToggle'),
+    awakeStatus: $('awakeStatus'),
+    awakeWarn: $('awakeWarn'),
+
     // Transcript
     transcriptSection: $('transcriptSection'),
     transcriptStatus: $('transcriptStatus'),
@@ -553,6 +559,112 @@
   }
   setTranscriptToggleLabel();
 
+  // ---------- Screen wake lock ----------
+  // Tries to keep the iPhone screen awake while listening so Safari
+  // doesn't suspend and cut off audio. iOS 16.4+ Safari supports this.
+  const wake = {
+    supported: !!(navigator.wakeLock && typeof navigator.wakeLock.request === 'function'),
+    sentinel: null,
+    enabled: true,        // user wants it on while listening
+    deniedOnce: false,    // we tried and got rejected — show fallback
+  };
+
+  function setAwakeStatus(text, state) {
+    if (!ui.awakeStatus) return;
+    ui.awakeStatus.textContent = text;
+    if (state) ui.awakeStatus.setAttribute('data-state', state);
+    else ui.awakeStatus.removeAttribute('data-state');
+  }
+
+  function showAwakeWarn(show) {
+    if (!ui.awakeWarn) return;
+    ui.awakeWarn.hidden = !show;
+  }
+
+  async function acquireWakeLock() {
+    if (!wake.supported) {
+      setAwakeStatus('Not supported', 'unsupported');
+      showAwakeWarn(true);
+      return false;
+    }
+    if (!wake.enabled) {
+      setAwakeStatus('Off');
+      return false;
+    }
+    if (wake.sentinel) {
+      setAwakeStatus('On', 'on');
+      return true;
+    }
+    try {
+      const sentinel = await navigator.wakeLock.request('screen');
+      wake.sentinel = sentinel;
+      sentinel.addEventListener('release', () => {
+        // The browser may release for many reasons (tab hidden, low power).
+        // Drop our handle; visibilitychange will try to reacquire if still listening.
+        if (wake.sentinel === sentinel) wake.sentinel = null;
+        if (running && wake.enabled) {
+          setAwakeStatus('Paused', 'paused');
+        } else {
+          setAwakeStatus('Off');
+        }
+      });
+      setAwakeStatus('On', 'on');
+      showAwakeWarn(false);
+      return true;
+    } catch (err) {
+      console.warn('Wake lock request failed:', err);
+      wake.deniedOnce = true;
+      setAwakeStatus('Unavailable', 'error');
+      showAwakeWarn(true);
+      return false;
+    }
+  }
+
+  async function releaseWakeLock() {
+    const s = wake.sentinel;
+    wake.sentinel = null;
+    if (s) {
+      try { await s.release(); } catch (_) { /* ignore */ }
+    }
+    setAwakeStatus('Off');
+  }
+
+  // Initial wake-lock UI state
+  if (!wake.supported) {
+    if (ui.awakeToggle) {
+      ui.awakeToggle.checked = false;
+      ui.awakeToggle.disabled = true;
+      ui.awakeToggle.setAttribute('aria-disabled', 'true');
+    }
+    if (ui.awake) ui.awake.setAttribute('data-state', 'unsupported');
+    setAwakeStatus('Not supported', 'unsupported');
+    showAwakeWarn(true);
+    wake.enabled = false;
+  } else {
+    setAwakeStatus('Off');
+  }
+
+  if (ui.awakeToggle) {
+    ui.awakeToggle.addEventListener('change', async () => {
+      wake.enabled = !!ui.awakeToggle.checked;
+      if (running && wake.enabled) {
+        await acquireWakeLock();
+      } else if (!wake.enabled) {
+        await releaseWakeLock();
+      }
+      // If turned on but not listening, the lock will be acquired when Start is tapped.
+      if (wake.enabled && !running) setAwakeStatus('Off');
+    });
+  }
+
+  // Reacquire on visibility change if we should still be holding it.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    if (running && wake.enabled && !wake.sentinel) {
+      await acquireWakeLock();
+    }
+  });
+
   // ---------- Audio engine ----------
   async function start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -657,6 +769,12 @@
       startTranscript();
     }
 
+    // Request a screen wake lock from this user-gesture call to keep the
+    // iPhone awake while listening. Safe no-op if unsupported.
+    if (wake.enabled) {
+      acquireWakeLock();
+    }
+
     if (typeof audioCtx.outputLatency === 'number' || typeof audioCtx.baseLatency === 'number') {
       const ms = Math.round(((audioCtx.outputLatency || 0) + (audioCtx.baseLatency || 0)) * 1000);
       ui.latency.textContent = `Engine latency: ${ms} ms`;
@@ -671,6 +789,9 @@
     running = false;
     cancelAnimationFrame(rafId);
     rafId = null;
+
+    // Release the screen wake lock when we stop listening.
+    releaseWakeLock();
 
     if (nodes) {
       try { Object.values(nodes).forEach((n) => n.disconnect && n.disconnect()); } catch (_) {}
@@ -779,6 +900,7 @@
       audioCtx.resume().catch(() => {});
     }
   });
+  // Wake lock reacquire is handled in its own visibilitychange listener above.
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     setStatus('Microphone not supported', 'error');

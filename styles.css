@@ -704,3 +704,96 @@ input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offs
 @media (min-width: 720px) {
   .stage { padding-top: 24px; }
 }
+
+/* ===================== Keep screen awake ===================== */
+.awake {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto 14px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+.awake__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.awake__label {
+  color: var(--text);
+  font-weight: 500;
+}
+.awake__switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+.awake__switch input {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.awake__track {
+  position: absolute; inset: 0;
+  background: var(--border-strong, rgba(255,255,255,0.18));
+  border-radius: 999px;
+  transition: background .15s ease;
+}
+.awake__thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+  transition: transform .18s ease;
+}
+.awake__switch input:checked + .awake__track {
+  background: var(--accent-strong, #4abfa9);
+}
+.awake__switch input:checked + .awake__track .awake__thumb {
+  transform: translateX(16px);
+}
+.awake__switch input:focus-visible + .awake__track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.awake__switch input:disabled + .awake__track {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.awake__status {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.awake__status[data-state="on"] { color: var(--ok); font-weight: 600; }
+.awake__status[data-state="paused"] { color: var(--warn); }
+.awake__status[data-state="error"] { color: var(--danger); }
+.awake__status[data-state="unsupported"] { color: var(--warn); }
+
+.awake[data-state="unsupported"] {
+  opacity: 0.78;
+}
+
+.warn--awake {
+  background: rgba(255,181,71,.08);
+  border-color: rgba(255,181,71,.35);
+  color: #ffe5bd;
+  text-align: left;
+  margin-top: 10px;
+}

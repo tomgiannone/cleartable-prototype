@@ -133,6 +133,20 @@
     <div class="stage">
       <div class="status" id="status" data-testid="status-monitor" aria-live="polite">Tap to start</div>
 
+      <div class="awake" id="awake" data-testid="control-wake-lock">
+        <label class="awake__row" for="awakeToggle">
+          <span class="awake__label">Keep screen awake</span>
+          <span class="awake__switch">
+            <input type="checkbox" id="awakeToggle" data-testid="toggle-wake-lock" checked />
+            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
+          </span>
+        </label>
+        <span class="awake__status" id="awakeStatus" data-testid="status-wake-lock" aria-live="polite">Off</span>
+      </div>
+      <p class="warn warn--awake" id="awakeWarn" data-testid="warning-wake-lock" hidden>
+        Your phone may dim and pause sound. To stay awake, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you use ClearTable.
+      </p>
+
       <button id="toggle" class="bigbtn" data-testid="button-toggle" aria-pressed="false" aria-label="Start Listening">
         <span class="bigbtn__ring" aria-hidden="true"></span>
         <span class="bigbtn__ring bigbtn__ring--2" aria-hidden="true"></span>
@@ -241,6 +255,12 @@
           <summary><span class="help__title">Privacy</span><span class="help__chev" aria-hidden="true"></span></summary>
           <p><strong>Audio enhancement</strong> is processed <strong>only on this phone</strong>. Nothing is recorded, saved, or sent anywhere. Tap <em>Stop</em> or close the tab and the microphone is released.</p>
           <p><strong>Live transcript</strong> uses your browser's built-in speech recognition. Depending on the browser, audio may be sent to <strong>Apple, Google, or another speech service</strong> to be turned into text. The transcript itself stays on this device and is cleared when you tap <em>Clear</em> or leave the page. Turn the transcript off if you don't want speech sent off-device.</p>
+        </details>
+
+        <details class="help" data-testid="details-keep-awake">
+          <summary><span class="help__title">Keep your phone awake</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>iPhones dim and lock after a short idle period, which can pause Safari and cut off the sound. ClearTable asks the browser to <strong>keep the screen awake</strong> while you're listening, using a small toggle near the status above.</p>
+          <p>If your browser doesn't support that, or you turn it off, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while you're at the table, then change it back afterward. Keeping Safari in the foreground also helps.</p>
         </details>
 
         <details class="help" data-testid="details-tips">
