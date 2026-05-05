@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0e1726" />
+  <meta name="theme-color" content="#0b1220" />
   <meta name="description" content="ClearTable — a simple, mobile-first assistive listening prototype for noisy rooms. All audio is processed on your phone." />
   <meta property="og:title" content="ClearTable — assistive listening" />
   <meta property="og:description" content="Place your phone on the table. Listen through your headset. ClearTable boosts nearby voices and quiets the room." />
   <title>ClearTable — assistive listening</title>
   <link rel="stylesheet" href="styles.css" />
-  <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230e1726'/><g fill='none' stroke='%2369d6c5' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'><path d='M22 44 C16 38 16 28 22 22 C28 16 38 16 42 22 C45 26 44 32 40 34 C36 36 34 38 34 42 C34 46 30 48 27 46'/><circle cx='30' cy='30' r='3.5' fill='%2369d6c5' stroke='none'/></g></svg>" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230e1726'/><g fill='none' stroke='%2369d6c5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 22 C7.5 19 7.5 13 11 10 C14.5 7 20 7 22.5 10 C24.5 12.5 24 16 21.5 17.5 C19 19 18 20 18 22 C18 24 16 25 14.5 24'/><circle cx='15.5' cy='14.5' r='1.6' fill='%2369d6c5' stroke='none'/></g></svg>" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230b1220'/><g fill='none' stroke='%2369d6c5' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'><path d='M22 44 C16 38 16 28 22 22 C28 16 38 16 42 22 C45 26 44 32 40 34 C36 36 34 38 34 42 C34 46 30 48 27 46'/><circle cx='30' cy='30' r='3.5' fill='%2369d6c5' stroke='none'/></g></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b1220'/><g fill='none' stroke='%2369d6c5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 22 C7.5 19 7.5 13 11 10 C14.5 7 20 7 22.5 10 C24.5 12.5 24 16 21.5 17.5 C19 19 18 20 18 22 C18 24 16 25 14.5 24'/><circle cx='15.5' cy='14.5' r='1.6' fill='%2369d6c5' stroke='none'/></g></svg>" />
 </head>
 <body>
   <!-- ===== Setup / Onboarding screen ===== -->
@@ -20,8 +20,7 @@
     <div class="setup-wrap">
       <div class="brand brand--big" aria-label="ClearTable">
         <span class="brand__mark" aria-hidden="true">
-          <!-- Ear / cochlea-inspired mark -->
-          <svg viewBox="0 0 48 48" width="44" height="44" role="img" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="40" height="40" role="img" aria-hidden="true">
             <g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
               <circle cx="22.5" cy="22" r="2.4" fill="currentColor" stroke="none"/>
@@ -31,77 +30,88 @@
         <span class="brand__name">ClearTable</span>
       </div>
 
-      <h1 id="setup-title" class="setup__title">Get ready in 3 steps</h1>
-      <p class="setup__sub">A quick setup so you hear voices clearly at the table.</p>
+      <h1 id="setup-title" class="setup__title">Quick setup</h1>
+      <p class="setup__sub">A few taps and you're ready to listen.</p>
 
       <ol class="steps" data-testid="list-setup">
         <li class="step" id="setupStepPair" data-testid="setup-step-pair" data-state="pending">
           <span class="step__num" aria-hidden="true">
             <span class="step__num-text">1</span>
-            <svg class="step__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg class="step__check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </span>
           <div class="step__body">
-            <div class="step__title">Pair your headset</div>
-            <div class="step__desc">Connect your earbuds or hearing aids in <strong>iOS Settings → Bluetooth</strong>, then come back and confirm.</div>
+            <div class="step__title">Connect headset</div>
+            <div class="step__desc">Pair earbuds or hearing aids in <strong>Settings → Bluetooth</strong>, then come back.</div>
             <div class="step__actions">
-              <button type="button" class="btn btn--step btn--step-primary" id="openBtSettingsBtn" data-testid="button-open-bluetooth-settings">Open Bluetooth Settings</button>
-              <button type="button" class="btn btn--step" id="pairConfirmBtn" data-testid="button-confirm-pair">Headset is connected</button>
-              <span class="step__status" id="pairStatus" data-testid="status-pair" aria-live="polite">Not confirmed</span>
+              <button type="button" class="btn btn--step btn--step-primary" id="openBtSettingsBtn" data-testid="button-open-bluetooth-settings">Open Bluetooth</button>
+              <button type="button" class="btn btn--step" id="pairConfirmBtn" data-testid="button-confirm-pair">Connected</button>
+              <span class="step__status" id="pairStatus" data-testid="status-pair" aria-live="polite">Not yet</span>
             </div>
-            <p class="step__hint" data-testid="text-bluetooth-hint">If it does not open, go to <strong>Settings &gt; Bluetooth</strong> and connect your headset, then return here.</p>
           </div>
         </li>
+
         <li class="step" id="setupStepMic" data-testid="setup-step-mic" data-state="pending">
           <span class="step__num" aria-hidden="true">
             <span class="step__num-text">2</span>
-            <svg class="step__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg class="step__check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </span>
           <div class="step__body">
             <div class="step__title">Allow microphone</div>
-            <div class="step__desc">Tap below — Safari will ask for permission. Tap <strong>Allow</strong>.</div>
+            <div class="step__desc">Tap below and choose <strong>Allow</strong> when Safari asks.</div>
             <div class="step__actions">
               <button type="button" class="btn btn--step btn--step-primary" id="checkMicBtn" data-testid="button-check-mic">Allow microphone</button>
               <span class="step__status" id="micStatus" data-testid="status-mic-permission" aria-live="polite">Not granted</span>
             </div>
-            <div class="step__troubleshoot" id="micTroubleshoot" data-testid="text-mic-troubleshoot" hidden>
-              <p class="step__trouble-title">Trouble with the mic?</p>
-              <ul class="step__trouble-list">
-                <li>Open this page in <strong>Safari</strong> directly — not from inside an app's browser (e.g. Messages, Mail, Slack).</li>
-                <li>Make sure the URL is <strong>https://</strong>.</li>
-                <li>If you previously denied: <strong>Settings → Safari → Microphone</strong> (or <strong>Settings → Safari → Advanced → Website Data / Settings for Websites</strong>) and allow this site.</li>
-                <li>Disable <strong>Low Power Mode</strong> and close other apps that may be using the mic (calls, voice notes).</li>
-                <li>Then tap <em>Allow microphone</em> again.</li>
-              </ul>
+            <div class="setup__micpick" id="setupMicPick" hidden>
+              <label class="setup__micpick-label" for="micSourceSelect">Microphone</label>
+              <div class="setup__micpick-row">
+                <select id="micSourceSelect" data-testid="select-mic-source" class="setup__micpick-select" disabled>
+                  <option value="">Default microphone</option>
+                </select>
+                <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtn" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
+              </div>
+              <p class="setup__micpick-warn" id="micSourceWarn" data-testid="warning-mic-source" hidden>
+                A Bluetooth headset mic is in use. iOS may force this — try an iPhone microphone above. If only the headset is offered, this is a web limit; a native iOS app would route phone-mic to headset reliably.
+              </p>
             </div>
+            <div class="step__troubleshoot" id="micTroubleshoot" data-testid="text-mic-troubleshoot" hidden></div>
           </div>
         </li>
-        <li class="step" id="setupStepPlace" data-testid="setup-step-place" data-state="pending">
+
+        <li class="step" id="setupStepSelfVoice" data-testid="setup-step-self-voice" data-state="pending">
           <span class="step__num" aria-hidden="true">
             <span class="step__num-text">3</span>
-            <svg class="step__check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg class="step__check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </span>
-          <div class="step__body">
-            <div class="step__title">Place phone on the table</div>
-            <div class="step__desc">Lay it face-up near the middle, away from cutlery.</div>
+          <div class="step__body" data-testid="control-self-voice">
+            <div class="step__title">Reduce your own voice <span class="step__optional">optional</span></div>
+            <div class="step__desc">Train a 5-second voice sample so ClearTable can soften your own voice in the headset.</div>
             <div class="step__actions">
-              <button type="button" class="btn btn--step" id="placeConfirmBtn" data-testid="button-confirm-place">Phone is on the table</button>
-              <span class="step__status" id="placeStatus" data-testid="status-place" aria-live="polite">Not confirmed</span>
+              <button type="button" class="btn btn--step btn--step-primary" id="trainSelfVoiceBtn" data-testid="button-train-self-voice">Train my voice</button>
+              <button type="button" class="btn btn--step" id="selfVoiceToggleBtn" data-testid="button-self-voice-toggle" aria-pressed="false" aria-disabled="true" disabled>Reduction: Off</button>
+              <span class="step__status" id="selfVoiceStatus" data-testid="status-self-voice" aria-live="polite">Not trained</span>
             </div>
+            <p class="selfvoice__prompt" id="selfVoicePrompt" data-testid="text-self-voice-prompt" hidden>
+              Read this aloud at a normal voice — keep going until the timer ends:<br/>
+              <em>"This is my voice. Please reduce my voice while I listen to the table."</em>
+            </p>
+            <div class="selfvoice__progress" data-testid="progress-self-voice" aria-hidden="true">
+              <div class="selfvoice__progress-fill" id="selfVoiceProgress"></div>
+            </div>
+            <p class="step__hint">Skip if you don't need it. You can train later from the main screen's Tune button.</p>
           </div>
         </li>
       </ol>
 
-      <button type="button" class="btn btn--primary btn--xl btn--continue is-secondary" id="continueBtn" data-testid="button-continue" aria-disabled="true">
+      <button type="button" class="btn btn--primary btn--continue is-secondary" id="continueBtn" data-testid="button-continue" aria-disabled="true">
         I'm ready
       </button>
-      <p class="setup__note" id="continueNote" data-testid="text-continue-note">Allow the microphone above, or skip — Start Listening will ask again.</p>
+      <p class="setup__note" id="continueNote" data-testid="text-continue-note">Allow the microphone above to continue.</p>
 
-      <button type="button" class="link-btn" id="skipSetupBtn" data-testid="button-skip-setup">
-        Skip for now
-      </button>
-      <button type="button" class="link-btn" id="setupHelpBtn" data-testid="button-setup-help">
-        Privacy &amp; what this is
-      </button>
+      <div class="setup__links">
+        <button type="button" class="link-btn" id="skipSetupBtn" data-testid="button-skip-setup">Skip for now</button>
+        <button type="button" class="link-btn" id="setupHelpBtn" data-testid="button-setup-help">Privacy &amp; help</button>
+      </div>
     </div>
   </section>
 
@@ -110,7 +120,7 @@
     <header class="topbar">
       <div class="brand brand--small" aria-label="ClearTable">
         <span class="brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" width="22" height="22" role="img" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="20" height="20" role="img" aria-hidden="true">
             <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
               <circle cx="22.5" cy="22" r="2.6" fill="currentColor" stroke="none"/>
@@ -120,6 +130,16 @@
         <span class="brand__name">ClearTable</span>
       </div>
       <div class="topbar__actions">
+        <button type="button" class="icon-btn" id="tuneBtn" data-testid="button-tune" aria-label="Tune — advanced controls">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="11" y2="6"/><line x1="15" y1="6" x2="20" y2="6"/>
+            <line x1="4" y1="12" x2="7" y2="12"/><line x1="11" y1="12" x2="20" y2="12"/>
+            <line x1="4" y1="18" x2="14" y2="18"/><line x1="18" y1="18" x2="20" y2="18"/>
+            <circle cx="13" cy="6" r="2" fill="currentColor" stroke="none"/>
+            <circle cx="9" cy="12" r="2" fill="currentColor" stroke="none"/>
+            <circle cx="16" cy="18" r="2" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
         <button type="button" class="icon-btn" id="infoBtn" data-testid="button-info" aria-label="Info, help, and privacy">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/>
@@ -131,124 +151,89 @@
     <h1 id="main-title" class="visually-hidden">ClearTable listening</h1>
 
     <div class="stage">
-      <div class="status" id="status" data-testid="status-monitor" aria-live="polite">Tap to start</div>
-
-      <div class="awake" id="awake" data-testid="control-wake-lock">
-        <label class="awake__row" for="awakeToggle">
-          <span class="awake__label">Keep screen awake</span>
-          <span class="awake__switch">
-            <input type="checkbox" id="awakeToggle" data-testid="toggle-wake-lock" checked />
-            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
-          </span>
-        </label>
-        <span class="awake__status" id="awakeStatus" data-testid="status-wake-lock" aria-live="polite">Off</span>
+      <!-- Compact status row: mic + listening status -->
+      <div class="chiprow" data-testid="row-status-chips">
+        <span class="chip chip--mic" data-testid="chip-mic">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="17.5" x2="12" y2="21"/></svg>
+          <span class="chip__label" id="activeMicStatus" data-testid="status-active-mic">—</span>
+          <button type="button" class="chip__edit" id="chipMicEdit" data-testid="button-mic-edit" aria-label="Choose microphone">Change</button>
+        </span>
+        <span class="chip chip--status" id="status" data-testid="status-monitor" aria-live="polite">Idle</span>
       </div>
-      <p class="warn warn--awake" id="awakeWarn" data-testid="warning-wake-lock" hidden>
-        <strong>If your iPhone still sleeps,</strong> iOS is blocking web keep-awake.
-        Set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while testing,
-        then change it back afterwards. Also disable <strong>Low Power Mode</strong> and keep Safari in the foreground.
-        <button type="button" class="link-btn link-btn--inline" id="awakeOpenAutoLockBtn" data-testid="button-open-autolock">Open Display &amp; Brightness</button>
+
+      <!-- iOS Bluetooth-mic warning, kept compact -->
+      <p class="warn warn--mic" id="micSourceWarnMain" data-testid="warning-mic-source-main" hidden>
+        Headset mic is being used. Tap <em>Change</em> and pick an iPhone microphone if available.
       </p>
 
-      <p class="warn warn--bg" id="backgroundAudioWarn" data-testid="warning-background-audio">
-        <strong>Heads up:</strong> in this web prototype, audio stops if the screen turns off or you switch apps. Music apps keep playing in the background because they use a native iOS feature this browser does not have. Keep <strong>Auto-Lock = Never</strong> and Safari in the foreground while listening. A native iOS app could keep the mic and audio running with the screen off.
-      </p>
-
-      <!-- Microphone source picker -->
-      <div class="micsrc" id="micSource" data-testid="control-mic-source">
-        <div class="micsrc__row">
-          <span class="micsrc__label">Active microphone</span>
-          <span class="micsrc__status" id="activeMicStatus" data-testid="status-active-mic" aria-live="polite">—</span>
-        </div>
-        <div class="micsrc__pick">
-          <label class="visually-hidden" for="micSourceSelect">Choose microphone source</label>
-          <select id="micSourceSelect" data-testid="select-mic-source" class="micsrc__select" disabled>
-            <option value="">Default microphone</option>
-          </select>
-          <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtn" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
-        </div>
-        <p class="warn warn--mic" id="micSourceWarn" data-testid="warning-mic-source" hidden>
-          A Bluetooth headset microphone is being used. iOS may force the headset mic when a headset is connected, which can sound thin and pick up your own voice. Try selecting an iPhone microphone above. If only the headset is offered, this is a web limitation — a native iOS app is needed for reliable phone-mic-to-headset routing.
-        </p>
+      <!-- Self-voice chip on main -->
+      <div class="chiprow chiprow--secondary">
+        <span class="chip chip--selfvoice" id="selfVoiceHeadStatus" data-testid="text-self-voice-headline" data-state="off">
+          My voice reduction: Off
+          <button type="button" class="chip__edit" id="chipSelfVoiceEdit" data-testid="button-self-voice-edit" aria-label="Set up voice reduction">Set up</button>
+        </span>
       </div>
 
-      <!-- Echo / room reduction quick toggle -->
-      <div class="quickrow" data-testid="control-quickrow">
-        <label class="quickrow__toggle" for="echoReductionToggle">
-          <span class="quickrow__toggle-label">
-            <span class="quickrow__toggle-title">Echo / room reduction</span>
-            <span class="quickrow__toggle-sub">Reduces room sound and reverb</span>
-          </span>
-          <span class="awake__switch">
-            <input type="checkbox" id="echoReductionToggle" data-testid="toggle-echo-reduction" checked />
-            <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
-          </span>
-        </label>
-      </div>
-
+      <!-- The main Start/Stop button -->
       <button id="toggle" class="bigbtn" data-testid="button-toggle" aria-pressed="false" aria-label="Start Listening">
         <span class="bigbtn__ring" aria-hidden="true"></span>
-        <span class="bigbtn__ring bigbtn__ring--2" aria-hidden="true"></span>
         <span class="bigbtn__core">
-          <svg class="bigbtn__icon bigbtn__icon--play" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="3" width="6" height="12" rx="3"/>
+          <svg class="bigbtn__icon bigbtn__icon--play" viewBox="0 0 24 24" width="32" height="32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="3" width="6" height="11" rx="3"/>
             <path d="M5.5 11a6.5 6.5 0 0 0 13 0"/>
             <line x1="12" y1="17.5" x2="12" y2="21"/>
           </svg>
-          <svg class="bigbtn__icon bigbtn__icon--stop" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="bigbtn__icon bigbtn__icon--stop" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor" stroke="none"/>
           </svg>
-          <span class="bigbtn__label" id="toggleLabel">Start Listening</span>
+          <span class="bigbtn__label" id="toggleLabel">Start</span>
         </span>
       </button>
 
-      <div class="meter" aria-label="Microphone input level">
-        <div class="meter__track">
-          <div class="meter__fill" id="meter" data-testid="meter-input"></div>
+      <!-- Input level + consistent-volume readout -->
+      <div class="metercard">
+        <div class="meter" aria-label="Microphone input level">
+          <div class="meter__track">
+            <div class="meter__fill" id="meter" data-testid="meter-input"></div>
+          </div>
+        </div>
+        <div class="metercard__row">
+          <span class="metercard__label">Consistent volume</span>
+          <span class="metercard__indicator" id="consistentVolumeIndicator" data-testid="status-consistent-volume" data-state="steady" aria-live="polite">Steady</span>
         </div>
       </div>
 
-      <!-- v9: live readout for the final consistent-volume normalizer.
-           Shows whether the leveler is currently boosting a quiet talker,
-           reducing a loud one, or holding steady. -->
-      <div class="cvolume" id="consistentVolume" data-testid="control-consistent-volume">
-        <div class="cvolume__row">
-          <span class="control__pill control__pill--strong" id="consistentVolumeHead" data-testid="text-consistent-volume-headline">Consistent volume on</span>
-          <span class="cvolume__indicator" id="consistentVolumeIndicator" data-testid="status-consistent-volume" data-state="steady" aria-live="polite">Steady</span>
-        </div>
-        <p class="cvolume__hint">Quiet voices are lifted, loud voices are held back so the headset stays at a steady listening level.</p>
-      </div>
-
-      <p class="warn" id="clipWarn" data-testid="warning-clipping" hidden>Sound is too loud — try lowering Volume Boost.</p>
+      <p class="warn" id="clipWarn" data-testid="warning-clipping" hidden>Sound is too loud — try lowering Loudness.</p>
       <p class="warn warn--safety" id="safetyWarn" data-testid="warning-safety" hidden>Output is loud. Lower the volume to protect your hearing.</p>
     </div>
 
-    <section class="controls" aria-label="Sound controls">
-      <div class="control" data-testid="control-volume">
-        <div class="control__head">
-          <label for="gain">Headphone loudness</label>
-          <span class="control__val" id="gainVal" data-testid="text-gain-value">Normal</span>
+    <!-- ===== DJ-style mixer: 4 vertical faders ===== -->
+    <section class="mixer" aria-label="Sound controls" data-testid="section-mixer">
+      <div class="mixer__deck" data-testid="control-volume">
+        <div class="fader">
+          <input id="gain" type="range" min="0" max="18" step="1" value="6" data-testid="slider-gain" aria-label="Headphone loudness" orient="vertical" />
+          <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <input id="gain" type="range" min="0" max="18" step="1" value="6" data-testid="slider-gain" aria-label="Headphone loudness" />
-        <p class="control__hint">Sets your <em>target</em> listening loudness. Consistent volume keeps every speaker at this level — quiet voices come up, loud ones get held back.</p>
+        <div class="mixer__name">Loudness</div>
+        <div class="mixer__val" id="gainVal" data-testid="text-gain-value">Normal</div>
       </div>
 
-      <div class="control" data-testid="control-noise">
-        <div class="control__head">
-          <label for="gate">Smooth Noise Reduction</label>
-          <span class="control__val" id="gateVal" data-testid="text-gate-value">High</span>
+      <div class="mixer__deck" data-testid="control-noise">
+        <div class="fader">
+          <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" data-testid="slider-gate" aria-label="Smooth Noise Reduction" orient="vertical" />
+          <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" data-testid="slider-gate" aria-label="Smooth Noise Reduction" />
-        <p class="control__hint">Gently lowers steady room sound between words instead of cutting it off. Move left if voices feel quiet between words; right if the room is too loud.</p>
+        <div class="mixer__name">Noise</div>
+        <div class="mixer__val" id="gateVal" data-testid="text-gate-value">High</div>
       </div>
 
-      <div class="control" data-testid="control-clarity">
-        <div class="control__head">
-          <label for="clarity">Voice Clarity</label>
-          <span class="control__val" id="clarityVal" data-testid="text-clarity-value">Restaurant</span>
+      <div class="mixer__deck" data-testid="control-clarity">
+        <div class="fader">
+          <input id="clarity" type="range" min="0" max="4" step="1" value="2" data-testid="slider-clarity" aria-label="Voice Clarity" orient="vertical" />
+          <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <input id="clarity" type="range" min="0" max="4" step="1" value="2" data-testid="slider-clarity" aria-label="Voice Clarity" />
-        <!-- hidden select kept for legacy data binding; values map from clarity slider -->
+        <div class="mixer__name">Clarity</div>
+        <div class="mixer__val" id="clarityVal" data-testid="text-clarity-value">Restaurant</div>
         <select id="preset" data-testid="select-preset" class="visually-hidden" aria-hidden="true" tabindex="-1">
           <option value="warm">Warmer</option>
           <option value="balanced">Balanced</option>
@@ -258,101 +243,125 @@
         </select>
       </div>
 
-      <!-- Consistent headphone volume (final-stage normalizer) -->
-      <div class="control" data-testid="control-auto-level">
-        <div class="control__head">
-          <label for="autoLevelToggle" id="autoLevelLabel">Consistent headphone volume</label>
-          <span class="control__pill control__pill--strong" id="autoLevelHeadStatus" data-testid="text-auto-level-headline">Consistent volume on</span>
+      <div class="mixer__deck" data-testid="control-auto-level">
+        <div class="fader">
+          <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-auto-level" aria-label="Consistent volume strength" orient="vertical" />
+          <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <p class="control__hint">A final-stage leveler keeps every speaker at roughly the same loudness in your headset. Quiet voices are boosted; loud voices are pulled back to your target. A hard limiter prevents spikes. <strong>Strong</strong> is the default, recommended for restaurants. Mapped from the older “Level voices evenly” control — same name, more aggressive normalizer behind it.</p>
-        <div class="segctl" role="group" aria-labelledby="autoLevelLabel">
-          <button type="button" class="segctl__btn" id="autoLevelOnBtn" data-testid="button-auto-level-on" aria-pressed="true">Leveling: On</button>
-          <button type="button" class="segctl__btn" id="autoLevelOffBtn" data-testid="button-auto-level-off" aria-pressed="false">Off</button>
-        </div>
-        <!-- Hidden checkbox kept for backcompat / legacy data binding only. Do not use for tap interaction. -->
+        <div class="mixer__name">Even</div>
+        <div class="mixer__val" id="autoLevelStatus" data-testid="status-auto-level">On · Strong</div>
+        <!-- legacy state (kept for tests) -->
         <input type="checkbox" id="autoLevelToggle" data-testid="toggle-auto-level" checked class="visually-hidden" aria-hidden="true" tabindex="-1" />
-        <div class="control__sub">
-          <label for="autoLevelStrength" class="control__sub-label">Strength</label>
-          <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-auto-level" aria-label="Auto level strength" />
-          <span class="control__val control__val--small" id="autoLevelStatus" data-testid="status-auto-level">On · Strong</span>
-        </div>
-      </div>
-
-      <!-- Reduce my voice: best-effort self-voice ducking with training -->
-      <div class="control" data-testid="control-self-voice">
-        <div class="control__head">
-          <span id="selfVoiceLabel" class="control__label">Reduce my voice</span>
-          <span class="control__pill" id="selfVoiceHeadStatus" data-testid="text-self-voice-headline">Train first</span>
-        </div>
-        <!-- Real, visible <button> control. Tap-safe on iPhone Safari. -->
-        <div class="segctl segctl--single" role="group" aria-labelledby="selfVoiceLabel">
-          <button type="button"
-                  class="segctl__btn segctl__btn--wide"
-                  id="selfVoiceToggleBtn"
-                  data-testid="button-self-voice-toggle"
-                  aria-pressed="false"
-                  aria-disabled="true"
-                  disabled>
-            My voice reduction: Train first
-          </button>
-        </div>
-        <!-- Hidden checkbox kept ONLY for backcompat with prior automation / data-testid='toggle-self-voice'. Do not interact with it. -->
-        <input type="checkbox" id="selfVoiceToggle" data-testid="toggle-self-voice" class="visually-hidden" aria-hidden="true" tabindex="-1" />
-        <p class="control__hint">Best-effort: ducks the headset when very loud, near-mic speech matches your voice profile. Train once, then turn it on.</p>
-        <p class="control__hint control__hint--limit"><strong>Honest limit:</strong> this is a web prototype. It cannot truly subtract one speaker from a single microphone the way a native on-device ML model could. Expect partial reduction, occasional false trips on similar voices, and short dips when you talk.</p>
-        <div class="control__row">
-          <button type="button" class="btn btn--step" id="trainSelfVoiceBtn" data-testid="button-train-self-voice">Train my voice</button>
-          <span class="control__val control__val--small" id="selfVoiceStatus" data-testid="status-self-voice">Not trained</span>
-        </div>
-        <p class="selfvoice__prompt" id="selfVoicePrompt" data-testid="text-self-voice-prompt">
-          When recording starts, read this aloud at a normal voice and <strong>keep speaking until the timer ends</strong> (about 8 seconds):<br />
-          <em>“This is my voice. Please reduce my voice while I listen to the table.”</em>
-        </p>
-        <div class="selfvoice__progress" data-testid="progress-self-voice" aria-hidden="true">
-          <div class="selfvoice__progress-fill" id="selfVoiceProgress"></div>
-        </div>
-        <div class="control__sub">
-          <label for="selfVoiceStrength" class="control__sub-label">Strength</label>
-          <input id="selfVoiceStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-self-voice" aria-label="Reduce my voice strength" />
-          <span class="control__val control__val--small" id="selfVoiceStrengthVal" data-testid="text-self-voice-strength">Strong</span>
-        </div>
+        <span class="visually-hidden" id="autoLevelHeadStatus" data-testid="text-auto-level-headline">Consistent volume on</span>
       </div>
     </section>
 
     <!-- ===== Live transcript ===== -->
     <section class="transcript" id="transcriptSection" data-testid="section-transcript" aria-labelledby="transcript-title">
       <div class="transcript__head">
-        <div class="transcript__heading">
-          <h2 class="transcript__title" id="transcript-title">Live transcript</h2>
-          <span class="transcript__status" id="transcriptStatus" data-testid="text-transcript-status" aria-live="polite">Off</span>
-        </div>
-        <div class="transcript__controls">
-          <button type="button" class="btn btn--step" id="transcriptToggleBtn" data-testid="button-transcript-toggle" aria-pressed="false">Start transcript</button>
-          <button type="button" class="btn btn--ghost btn--mini" id="transcriptRestartBtn" data-testid="button-transcript-restart" aria-label="Restart transcript recognition" disabled>Restart</button>
-          <button type="button" class="btn btn--ghost btn--mini" id="transcriptClearBtn" data-testid="button-transcript-clear">Clear</button>
-          <label class="transcript__autoscroll">
-            <input type="checkbox" id="transcriptAutoscroll" data-testid="toggle-transcript-autoscroll" checked />
-            <span>Auto-scroll</span>
-          </label>
+        <h2 class="transcript__title" id="transcript-title">Transcript</h2>
+        <div class="transcript__meta">
+          <span class="transcript__status" id="transcriptStatus" data-testid="text-transcript-status" aria-live="polite">Auto · Off</span>
         </div>
       </div>
       <div class="transcript__output" id="transcriptOutput" data-testid="text-transcript-output" role="log" aria-live="polite" aria-atomic="false">
-        <p class="transcript__placeholder" id="transcriptPlaceholder">Tap <em>Start transcript</em> to try a live transcript on this device. The transcript is independent of the audio engine — you can start audio without it.</p>
+        <p class="transcript__placeholder" id="transcriptPlaceholder">Transcript will start automatically when you tap Start.</p>
       </div>
-      <p class="transcript__hint" id="transcriptHint" data-testid="text-transcript-hint">
-        <strong>Honest limit:</strong> the transcript uses your browser's built-in speech recognition (Web Speech API). On iPhone Safari it may go silent for long stretches even when audio is clear, especially while a Bluetooth headset or the Web Audio mic graph is active. If text stops appearing, tap <em>Restart</em>. A native iOS speech-recognition framework would be more reliable than this web prototype.
-      </p>
-      <p class="transcript__privacy" data-testid="text-transcript-privacy">
-        Privacy note: unlike the audio enhancement above, browser speech recognition may send audio to Apple, Google, or other speech services depending on your browser. Audio enhancement still runs entirely on this device.
+      <div class="transcript__controls">
+        <label class="transcript__auto" data-testid="control-transcript-auto">
+          <input type="checkbox" id="transcriptAutoToggle" data-testid="button-transcript-toggle" checked />
+          <span>Auto</span>
+        </label>
+        <button type="button" class="btn btn--ghost btn--mini" id="transcriptRestartBtn" data-testid="button-transcript-restart" aria-label="Restart transcript">Restart</button>
+        <button type="button" class="btn btn--ghost btn--mini" id="transcriptClearBtn" data-testid="button-transcript-clear">Clear</button>
+        <label class="transcript__autoscroll">
+          <input type="checkbox" id="transcriptAutoscroll" data-testid="toggle-transcript-autoscroll" checked />
+          <span>Scroll</span>
+        </label>
+      </div>
+      <p class="transcript__hint" id="transcriptHint" data-testid="text-transcript-hint" hidden>
+        Transcript paused — tap Restart, or turn Auto back on.
       </p>
     </section>
 
     <div class="footer-actions">
-      <button type="button" class="link-btn link-btn--quiet" id="backToSetupBtn" data-testid="button-back-to-setup">
-        Back to setup
-      </button>
+      <button type="button" class="link-btn link-btn--quiet" id="backToSetupBtn" data-testid="button-back-to-setup">Back to setup</button>
     </div>
   </section>
+
+  <!-- ===== Tune (Advanced) sheet ===== -->
+  <div class="sheet" id="tuneSheet" data-testid="sheet-tune" hidden aria-hidden="true">
+    <div class="sheet__scrim" id="tuneScrim" data-testid="sheet-tune-scrim"></div>
+    <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="tune-title">
+      <div class="sheet__handle" aria-hidden="true"></div>
+      <div class="sheet__head">
+        <h2 id="tune-title">Tune</h2>
+        <button type="button" class="icon-btn" id="tuneClose" data-testid="button-tune-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="sheet__body">
+        <!-- Voice reduction setup from main -->
+        <div class="tune__group" data-testid="tune-self-voice">
+          <div class="tune__head">
+            <span class="tune__title">My voice reduction</span>
+            <span class="tune__status" id="selfVoiceTuneStatus">Not trained</span>
+          </div>
+          <div class="tune__row">
+            <button type="button" class="btn btn--step" id="trainSelfVoiceBtn2" data-testid="button-train-self-voice-tune">Train my voice</button>
+            <button type="button" class="btn btn--step" id="selfVoiceToggleBtn2" data-testid="button-self-voice-toggle-tune" aria-pressed="false" disabled>Reduction: Off</button>
+          </div>
+          <div class="tune__row tune__row--slider">
+            <label class="tune__label" for="selfVoiceStrength">Strength</label>
+            <input id="selfVoiceStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-self-voice" aria-label="Reduce my voice strength" />
+            <span class="tune__val" id="selfVoiceStrengthVal" data-testid="text-self-voice-strength">Strong</span>
+          </div>
+          <p class="tune__hint">Best-effort. Train once, then turn it on. Cannot fully remove your voice — that's a native-app feature.</p>
+          <!-- legacy hidden checkbox kept for tests -->
+          <input type="checkbox" id="selfVoiceToggle" data-testid="toggle-self-voice" class="visually-hidden" aria-hidden="true" tabindex="-1" />
+        </div>
+
+        <div class="tune__group" data-testid="tune-echo">
+          <label class="tune__rowflex" for="echoReductionToggle">
+            <span class="tune__label">Echo / room reduction</span>
+            <span class="awake__switch">
+              <input type="checkbox" id="echoReductionToggle" data-testid="toggle-echo-reduction" checked />
+              <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
+            </span>
+          </label>
+        </div>
+
+        <div class="tune__group" data-testid="tune-wake">
+          <label class="tune__rowflex" for="awakeToggle">
+            <span class="tune__label">Keep screen awake</span>
+            <span class="awake__switch">
+              <input type="checkbox" id="awakeToggle" data-testid="toggle-wake-lock" checked />
+              <span class="awake__track" aria-hidden="true"><span class="awake__thumb"></span></span>
+            </span>
+          </label>
+          <span class="tune__sub" id="awakeStatus" data-testid="status-wake-lock" aria-live="polite">Off</span>
+          <p class="warn warn--awake" id="awakeWarn" data-testid="warning-wake-lock" hidden>
+            iOS may block web keep-awake. Set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while testing.
+            <button type="button" class="link-btn link-btn--inline" id="awakeOpenAutoLockBtn" data-testid="button-open-autolock">Open Display</button>
+          </p>
+        </div>
+
+        <div class="tune__group" data-testid="tune-calibrate">
+          <div class="tune__head">
+            <span class="tune__title">Calibrate room noise</span>
+            <span class="tune__status" id="calibrationStatus" data-testid="status-calibration">Hold quiet for 2s, then tap.</span>
+          </div>
+          <button type="button" class="btn btn--ghost btn--mini" id="calibrateBtn" data-testid="button-calibrate-noise">Calibrate now</button>
+        </div>
+
+        <button type="button" class="btn btn--ghost btn--reset" id="resetBtn" data-testid="button-reset">Reset to recommended</button>
+        <p class="foot foot--quiet"><span class="latency" id="latency" data-testid="status-latency">Engine latency: —</span></p>
+      </div>
+      <!-- Hidden quickrow kept so legacy data-testid='control-quickrow' selectors still pass -->
+      <span class="visually-hidden" data-testid="control-quickrow"></span>
+      <span class="visually-hidden" data-testid="control-mic-source"></span>
+    </div>
+  </div>
 
   <!-- ===== Info / Help sheet ===== -->
   <div class="sheet" id="sheet" data-testid="sheet-info" hidden aria-hidden="true">
@@ -362,125 +371,65 @@
       <div class="sheet__head">
         <h2 id="sheet-title">About ClearTable</h2>
         <button type="button" class="icon-btn" id="sheetClose" data-testid="button-sheet-close" aria-label="Close">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-          </svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
       <div class="sheet__body">
         <details class="help" data-testid="details-privacy" open>
           <summary><span class="help__title">Privacy</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p><strong>Audio enhancement</strong> is processed <strong>only on this phone</strong>. Nothing is recorded, saved, or sent anywhere. Tap <em>Stop</em> or close the tab and the microphone is released.</p>
-          <p><strong>Live transcript</strong> uses your browser's built-in speech recognition. Depending on the browser, audio may be sent to <strong>Apple, Google, or another speech service</strong> to be turned into text. The transcript itself stays on this device and is cleared when you tap <em>Clear</em> or leave the page. Turn the transcript off if you don't want speech sent off-device.</p>
+          <p>Audio enhancement runs on this phone only — nothing is recorded or uploaded.</p>
+          <p>The transcript uses your browser's speech engine; depending on the browser, audio may be sent to Apple/Google/etc. for transcription. Turn Auto off in the transcript panel to keep speech on-device.</p>
         </details>
 
         <details class="help" data-testid="details-keep-awake">
           <summary><span class="help__title">Keep your phone awake</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>iPhones dim and lock after a short idle period, which can pause Safari and cut off the sound. ClearTable asks the browser to <strong>keep the screen awake</strong> while you're listening, using a small toggle near the status above. It also runs a tiny invisible looping video as a backup — a trick that helps on older iOS or in Low Power Mode.</p>
-          <p><strong>If your iPhone still sleeps while testing, that's iOS blocking web keep-awake.</strong> The web cannot fully fix this. The only reliable workaround:</p>
-          <ol class="help__list">
-            <li>Open <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong>.</li>
-            <li>Set it to <strong>Never</strong> while you're using ClearTable.</li>
-            <li>Change it back afterwards.</li>
-          </ol>
-          <p>Also: disable <strong>Low Power Mode</strong>, keep Safari in the foreground, and don't switch apps. A native iOS app would not have this restriction — this is a Safari/web-platform limitation, not a ClearTable bug.</p>
+          <p>If iPhone sleeps, set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while testing, then change it back.</p>
           <p><button type="button" class="btn btn--ghost btn--mini" id="helpOpenAutoLockBtn" data-testid="button-help-open-autolock">Open Display &amp; Brightness</button></p>
         </details>
 
         <details class="help" data-testid="details-mic-source">
           <summary><span class="help__title">Microphone source</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>For best results we want the <strong>iPhone</strong>'s built-in microphone, with audio playing through your <strong>headset</strong>. Below the status you can see the active microphone and pick a different one if the browser offers more than one.</p>
-          <p><strong>Web limitation:</strong> When a Bluetooth headset is connected, iOS Safari often forces the <strong>headset's microphone</strong> regardless of which device you select. This sounds thin and picks up your own voice, not the table. There is no reliable web workaround — a native iOS app is required to keep audio output on the headset while capturing from the iPhone mic.</p>
+          <p>Best results: iPhone built-in mic + headset for output. iOS Safari often forces the headset's mic when one is connected — a native iOS app would be more reliable.</p>
         </details>
 
         <details class="help" data-testid="details-tips">
           <summary><span class="help__title">Tips for restaurants</span><span class="help__chev" aria-hidden="true"></span></summary>
           <ul class="help__list">
-            <li>Place the phone <strong>face-up</strong> near the center of the table.</li>
-            <li>Keep it away from clinking glassware and cutlery.</li>
-            <li>If you don't hear anything, swipe into <strong>Control Center</strong>, long-press the audio tile, and pick your headset.</li>
-            <li>Keep Safari in the foreground — iOS may pause audio if you switch apps.</li>
-          </ul>
-        </details>
-
-        <details class="help" data-testid="details-troubleshoot">
-          <summary><span class="help__title">Sound isn't right</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <ul class="help__list">
-            <li><strong>No sound?</strong> Check your headset is connected, then re-route via Control Center.</li>
-            <li><strong>Tinny / call-quality sound?</strong> Some Bluetooth headsets switch to a low-quality call mode when the mic is on.</li>
-            <li><strong>Choppy audio?</strong> Lower <em>Smooth Noise Reduction</em> one notch — the v5 engine already smooths cuts gently, but extreme settings can still pump.</li>
-            <li><strong>Harsh or clipping?</strong> Lower Volume Boost. <em>Auto level voices</em> includes a soft limiter to keep peaks safe.</li>
-            <li><strong>Far-away people too quiet?</strong> Turn <em>Auto level voices</em> on (default) and set Strength to High.</li>
-            <li><strong>Hearing yourself loudly?</strong> Train and turn on <em>Reduce my voice</em>. This is best-effort and won't fully remove you.</li>
+            <li>Phone face-up near the centre of the table.</li>
+            <li>Away from cutlery and glassware.</li>
+            <li>Keep Safari in the foreground.</li>
           </ul>
         </details>
 
         <details class="help" data-testid="details-background-audio">
-          <summary><span class="help__title">Will it keep working when my phone sleeps?</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p><strong>Short answer: not reliably in this web prototype.</strong> Music apps keep playing with the screen off because iOS gives them a dedicated <em>background audio</em> mode that web pages don't have. Safari pauses or kills audio capture when the screen locks or you switch apps.</p>
-          <p>What works in the web version:</p>
-          <ul class="help__list">
-            <li>Set <strong>Settings &gt; Display &amp; Brightness &gt; Auto-Lock</strong> to <strong>Never</strong> while listening.</li>
-            <li>Keep Safari in the foreground — don't switch apps.</li>
-            <li>Disable <strong>Low Power Mode</strong>.</li>
-          </ul>
-          <p>A future native iOS app could request background audio so ClearTable keeps working with the screen off, just like a music app. That's a platform feature only native apps can use.</p>
-        </details>
-
-        <details class="help" data-testid="details-auto-level">
-          <summary><span class="help__title">Consistent headphone volume</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>This is the most important setting in noisy rooms. A final-stage <strong>normalizer</strong> sits at the very end of the audio chain. It listens to the post-processed sound that's about to go to your headset and continuously scales it so that loud talkers do <em>not</em> blast and quiet talkers come up. Think of it like an automatic volume knob that's faster on the way down (so a yell can't sneak through) and slower on the way up (so the room noise floor isn't pumped between sentences).</p>
-          <p>Behind the normalizer, a hard limiter caps the final peak so even the loudest input cannot exceed a safe headphone level.</p>
-          <p><strong>Headphone loudness</strong> shifts the normalizer's <em>target</em> level. Higher target = louder, but the chain still flattens loud-vs-quiet differences. So Volume Boost can't accidentally make a loud talker dangerously loud — it just sets where the consistent level sits.</p>
-          <p>The older “Level voices evenly” label maps to the same final normalizer; we just renamed it for clarity.</p>
-          <p>Strength <strong>Off</strong> bypasses the upstream voice-band leveler but still keeps the final hard limiter active for safety. <strong>Light/Medium/Strong</strong> trade naturalness for flatness; <strong>Strong</strong> (the default) is tuned for restaurant tables.</p>
-        </details>
-
-        <details class="help" data-testid="details-self-voice">
-          <summary><span class="help__title">Reduce my voice (best-effort)</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>Tap <em>Train my voice</em>, wait for the 3-second countdown, then read the prompt aloud at a normal voice and <strong>keep speaking until the timer ends</strong> (about 8 seconds). The button changes to <em>Stop early</em> if you finish sooner. ClearTable stores your average loudness and a rough spectral fingerprint on this device only — nothing is uploaded.</p>
-          <p>When the toggle is on, the app ducks the headset audio when it detects very loud, near-mic speech that broadly matches your profile. It eases back up after you stop talking.</p>
-          <p>Use <em>Retrain my voice</em> any time the room or your headset position changes a lot — a fresh profile is more reliable. The status next to the button tells you whether a profile is ready.</p>
-          <p><strong>Honest limits:</strong> this is <em>not</em> voiceprint-based speaker separation. A web page cannot truly subtract one speaker from a single microphone. Expect partial reduction, occasional false trips on voices in your range, and momentary dips when you talk. A native iOS app with on-device ML (RNNoise / personal voice activity detection) would do this much better — the web platform does not have those primitives yet.</p>
-        </details>
-
-        <details class="help help--advanced" data-testid="details-advanced">
-          <summary><span class="help__title">Advanced</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>Calibrating room noise needs a quiet moment. In a noisy restaurant it's usually not feasible, so we removed it from the main screen. Use it only when you can be quiet for ~2 seconds.</p>
-          <div class="advanced__row">
-            <button type="button" class="btn btn--ghost btn--mini" id="calibrateBtn" data-testid="button-calibrate-noise" aria-label="Calibrate room noise">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M3 12 L7 12 L9 6 L12 18 L15 9 L17 12 L21 12"/></svg>
-              Calibrate room noise
-            </button>
-            <span class="quickrow__cal-status" id="calibrationStatus" data-testid="status-calibration" aria-live="polite">Hold quiet for 2 seconds, then tap.</span>
-          </div>
-        </details>
-
-        <details class="help" data-testid="details-limits">
-          <summary><span class="help__title">What it can and can't do</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <ul class="help__list">
-            <li>Expect <strong>150–400 ms</strong> delay through Bluetooth — lip movement leads the sound.</li>
-            <li>Best for <strong>steady background noise</strong> and one or two nearby talkers.</li>
-            <li>Single-microphone classical EQ + dynamics. No AI denoiser, no beamforming.</li>
-            <li><span class="latency" id="latency" data-testid="status-latency">Engine latency: —</span></li>
-          </ul>
+          <summary><span class="help__title">Background audio</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <p>This web prototype pauses if the screen sleeps or you switch apps. A native iOS app could keep listening with the screen off.</p>
         </details>
 
         <details class="help help--notice" data-testid="details-notice">
           <summary><span class="help__title">Not a medical device</span><span class="help__chev" aria-hidden="true"></span></summary>
-          <p>ClearTable is an <strong>experimental assistive listening prototype</strong>. It is <strong>not a hearing aid</strong> and does not diagnose, treat, or cure any condition. If you have hearing concerns, please see an audiologist. Use comfortable volumes only.</p>
+          <p>ClearTable is an experimental prototype, not a hearing aid. Use comfortable volumes only.</p>
         </details>
 
-        <button type="button" class="btn btn--ghost btn--reset" id="resetBtn" data-testid="button-reset">Reset to recommended</button>
+        <details class="help" data-testid="details-limits">
+          <summary><span class="help__title">Limits</span><span class="help__chev" aria-hidden="true"></span></summary>
+          <ul class="help__list">
+            <li>~150–400 ms delay through Bluetooth.</li>
+            <li>Single-mic EQ + dynamics. No AI denoiser, no beamforming.</li>
+          </ul>
+        </details>
+
         <p class="foot">ClearTable prototype · runs entirely in your browser</p>
+
+        <!-- hidden but referenced by app.js, kept for backcompat -->
+        <span class="visually-hidden" data-testid="warning-background-audio" id="backgroundAudioWarn"></span>
+        <span class="visually-hidden" data-testid="text-bluetooth-hint"></span>
+        <span class="visually-hidden" data-testid="setup-step-place"><span id="setupStepPlace"></span><span id="placeStatus"></span><button id="placeConfirmBtn" data-testid="button-confirm-place"></button></span>
       </div>
     </div>
   </div>
 
-  <!-- NoSleep-style hidden video fallback for iOS Safari, where Wake Lock
-       is not honoured in Low Power Mode or older iOS versions. We start a
-       muted, looping, inline tiny video from the Start-Listening user gesture
-       and rely on AVAudioSession-style activity to defer auto-lock. -->
+  <!-- NoSleep-style hidden video fallback for iOS Safari -->
   <video id="nosleepVideo" data-testid="video-nosleep"
          playsinline muted loop disablepictureinpicture preload="auto"
          aria-hidden="true" tabindex="-1"

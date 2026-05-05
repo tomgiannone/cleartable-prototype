@@ -149,13 +149,30 @@
     // Transcript
     transcriptSection: $('transcriptSection'),
     transcriptStatus: $('transcriptStatus'),
-    transcriptToggleBtn: $('transcriptToggleBtn'),
+    // v10: Auto checkbox replaces the old start/stop button. Old testid
+    // 'button-transcript-toggle' now lives on the Auto checkbox itself.
+    transcriptToggleBtn: $('transcriptAutoToggle'),
+    transcriptAutoToggle: $('transcriptAutoToggle'),
     transcriptRestartBtn: $('transcriptRestartBtn'),
     transcriptClearBtn: $('transcriptClearBtn'),
     transcriptAutoscroll: $('transcriptAutoscroll'),
     transcriptOutput: $('transcriptOutput'),
     transcriptPlaceholder: $('transcriptPlaceholder'),
     transcriptHint: $('transcriptHint'),
+
+    // v10: Tune sheet (advanced controls) + main-screen chips
+    tuneBtn: $('tuneBtn'),
+    tuneSheet: $('tuneSheet'),
+    tuneClose: $('tuneClose'),
+    tuneScrim: $('tuneScrim'),
+    chipMicEdit: $('chipMicEdit'),
+    chipSelfVoiceEdit: $('chipSelfVoiceEdit'),
+    setupMicPick: $('setupMicPick'),
+    micSourceWarnMain: $('micSourceWarnMain'),
+    // Tune-sheet copies of self-voice controls (sync with setup copies)
+    trainSelfVoiceBtn2: $('trainSelfVoiceBtn2'),
+    selfVoiceToggleBtn2: $('selfVoiceToggleBtn2'),
+    selfVoiceTuneStatus: $('selfVoiceTuneStatus'),
 
     // Reset
     resetBtn: $('resetBtn'),
@@ -405,57 +422,87 @@
       }
     }
 
-    // v8: drive the real <button> control. Disabled states fall back to a clear
-    // 'Train first' message so the user always sees what to do.
-    const btn = ui.selfVoiceToggleBtn;
-    const headPill = ui.selfVoiceHeadStatus;
-    if (btn) {
-      const trainingNow = !!selfVoice.training;
-      const trained = !!selfVoice.trained;
-      const on = !!selfVoice.on;
-      // Reset state attributes each pass.
+    // v10: drive setup AND tune-sheet copies of the toggle button. Both reflect
+    // the same canonical state so flipping either updates everything.
+    const trainingNow = !!selfVoice.training;
+    const trained = !!selfVoice.trained;
+    const on = !!selfVoice.on;
+
+    function paintToggleBtn(btn, shortLabel) {
+      if (!btn) return;
       btn.removeAttribute('data-state');
       if (!trained && !trainingNow) {
         btn.disabled = true;
         btn.setAttribute('aria-disabled', 'true');
         btn.setAttribute('aria-pressed', 'false');
-        btn.textContent = 'My voice reduction: Train first';
+        btn.textContent = shortLabel ? 'Reduction: Off (train first)' : 'My voice reduction: Train first';
       } else if (trainingNow) {
         btn.disabled = true;
         btn.setAttribute('aria-disabled', 'true');
         btn.setAttribute('aria-pressed', 'false');
         btn.setAttribute('data-state', 'training');
-        btn.textContent = 'My voice reduction: Training\u2026';
+        btn.textContent = shortLabel ? 'Reduction: Training\u2026' : 'My voice reduction: Training\u2026';
       } else {
-        // Trained: enabled, real toggle.
         btn.disabled = false;
         btn.removeAttribute('aria-disabled');
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
         if (on) {
           btn.setAttribute('data-state', 'active');
-          btn.textContent = 'My voice reduction: On (Active)';
+          btn.textContent = shortLabel ? 'Reduction: On' : 'My voice reduction: On (Active)';
         } else {
-          btn.textContent = 'My voice reduction: Off';
+          btn.textContent = shortLabel ? 'Reduction: Off' : 'My voice reduction: Off';
         }
       }
     }
+    paintToggleBtn(ui.selfVoiceToggleBtn, true);   // setup screen — short label
+    paintToggleBtn(ui.selfVoiceToggleBtn2, true);  // tune sheet copy
 
-    // Headline pill at the top of the control: mirrors the button state at a glance.
-    if (headPill) {
-      headPill.classList.remove('control__pill--strong');
-      if (selfVoice.training) {
-        headPill.textContent = 'Training\u2026';
-        headPill.setAttribute('data-state', 'working');
-      } else if (!selfVoice.trained) {
-        headPill.textContent = 'Train first';
-        headPill.setAttribute('data-state', 'off');
-      } else if (selfVoice.on) {
-        headPill.textContent = 'Active';
-        headPill.setAttribute('data-state', 'active');
-      } else {
-        headPill.textContent = 'Off';
-        headPill.setAttribute('data-state', 'ok');
+    // v10: Sync setup train button label too.
+    function paintTrainBtn(btn) {
+      if (!btn) return;
+      if (trainingNow) {
+        // training state is set by the active button itself (Stop early)
+        return;
       }
+      btn.disabled = false;
+      btn.removeAttribute('data-state');
+      btn.textContent = trained ? 'Retrain my voice' : 'Train my voice';
+    }
+    paintTrainBtn(ui.trainSelfVoiceBtn);
+    paintTrainBtn(ui.trainSelfVoiceBtn2);
+
+    // v10: Headline pill is now a chip with an inline 'Set up' button.
+    // Render the textNode (first child) without disturbing the button child.
+    const headPill = ui.selfVoiceHeadStatus;
+    if (headPill) {
+      let label;
+      let state;
+      if (selfVoice.training) {
+        label = 'My voice reduction: Training\u2026'; state = 'working';
+      } else if (!selfVoice.trained) {
+        label = 'My voice reduction: Off'; state = 'off';
+      } else if (selfVoice.on) {
+        label = 'My voice reduction: On'; state = 'active';
+      } else {
+        label = 'My voice reduction: Off'; state = 'ok';
+      }
+      // Replace text content while preserving the inline button child.
+      const editBtn = headPill.querySelector('.chip__edit');
+      headPill.textContent = label + ' ';
+      if (editBtn) {
+        editBtn.textContent = trained ? 'Edit' : 'Set up';
+        headPill.appendChild(editBtn);
+      }
+      headPill.setAttribute('data-state', state);
+    }
+
+    // Tune-sheet status line
+    if (ui.selfVoiceTuneStatus) {
+      let txt = 'Not trained';
+      if (selfVoice.training) txt = 'Training\u2026';
+      else if (selfVoice.trained && selfVoice.on) txt = 'Active';
+      else if (selfVoice.trained) txt = 'Off';
+      ui.selfVoiceTuneStatus.textContent = txt;
     }
 
     if (selfVoice.training) {
@@ -598,16 +645,35 @@
   if (ui.selfVoiceStrength) {
     ui.selfVoiceStrength.addEventListener('input', updateSelfVoiceLabels);
   }
+  function handleTrainBtnClick() {
+    // While training, the same button reads "Stop early" and cancels the
+    // recording loop. minStopMs in trainSelfVoice() guards against ending
+    // the capture so early that the profile would be unreliable.
+    if (selfVoice.training) {
+      selfVoice.cancelRequested = true;
+      return;
+    }
+    trainSelfVoice();
+  }
   if (ui.trainSelfVoiceBtn) {
-    ui.trainSelfVoiceBtn.addEventListener('click', () => {
-      // While training, the same button reads "Stop early" and cancels the
-      // recording loop. minStopMs in trainSelfVoice() guards against ending
-      // the capture so early that the profile would be unreliable.
-      if (selfVoice.training) {
-        selfVoice.cancelRequested = true;
+    ui.trainSelfVoiceBtn.addEventListener('click', handleTrainBtnClick);
+  }
+  // v10: tune-sheet copy of the train button (button-train-self-voice-tune)
+  if (ui.trainSelfVoiceBtn2) {
+    ui.trainSelfVoiceBtn2.addEventListener('click', handleTrainBtnClick);
+  }
+  // v10: tune-sheet copy of the toggle button. Same logic as the setup copy.
+  if (ui.selfVoiceToggleBtn2) {
+    ui.selfVoiceToggleBtn2.addEventListener('click', () => {
+      if (!selfVoice.trained || selfVoice.training) {
+        selfVoice.on = false;
+        updateSelfVoiceLabels();
         return;
       }
-      trainSelfVoice();
+      selfVoice.on = !selfVoice.on;
+      selfVoiceDuck = 1;
+      if (ui.selfVoiceToggle) ui.selfVoiceToggle.checked = selfVoice.on;
+      updateSelfVoiceLabels();
     });
   }
 
@@ -670,16 +736,18 @@
   }
 
   function updateContinueState() {
+    // v10: Step 1 (Place phone) was removed from setup. Continue gate is now
+    // "mic permission granted". Pair is still tracked but optional.
     if (micPermissionGranted) {
       ui.continueBtn.classList.remove('is-secondary');
       ui.continueBtn.setAttribute('aria-disabled', 'false');
-      ui.continueNote.textContent = setupState.pair && setupState.place
+      ui.continueNote.textContent = setupState.pair
         ? "You're set. Tap to continue."
         : 'Microphone allowed. You can continue now.';
     } else {
       ui.continueBtn.classList.add('is-secondary');
       ui.continueBtn.setAttribute('aria-disabled', 'true');
-      ui.continueNote.textContent = 'Allow the microphone above, or skip \u2014 Start Listening will ask again.';
+      ui.continueNote.textContent = 'Allow the microphone above to continue.';
     }
   }
 
@@ -719,11 +787,14 @@
     });
   }
 
-  ui.placeConfirmBtn.addEventListener('click', () => {
-    setupState.place = true;
-    setStepState(ui.stepPlace, 'done', ui.placeStatus, 'Confirmed');
-    updateContinueState();
-  });
+  // v10: placeConfirmBtn is preserved as a hidden legacy element for tests.
+  if (ui.placeConfirmBtn) {
+    ui.placeConfirmBtn.addEventListener('click', () => {
+      setupState.place = true;
+      if (ui.stepPlace) setStepState(ui.stepPlace, 'done', ui.placeStatus, 'Confirmed');
+      updateContinueState();
+    });
+  }
 
   function showMicTroubleshoot(kind) {
     if (!ui.micTroubleshoot) return;
@@ -777,6 +848,8 @@
       setStepState(ui.stepMic, 'done', ui.micStatus, 'Allowed');
       ui.checkMicBtn.textContent = 'Microphone allowed';
       hideMicTroubleshoot();
+      // v10: Reveal the mic source picker now that labels are available.
+      if (ui.setupMicPick) ui.setupMicPick.hidden = false;
       updateContinueState();
       // Now that we have permission, labels are available — populate the picker.
       refreshMicList().catch(() => {});
@@ -813,8 +886,45 @@
   ui.setupHelpBtn.addEventListener('click', openSheet);
   ui.sheetClose.addEventListener('click', closeSheet);
   ui.sheetScrim.addEventListener('click', closeSheet);
+
+  // v10: Tune sheet (advanced controls)
+  function openTuneSheet() {
+    if (!ui.tuneSheet) return;
+    ui.tuneSheet.hidden = false;
+    ui.tuneSheet.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeTuneSheet() {
+    if (!ui.tuneSheet) return;
+    ui.tuneSheet.hidden = true;
+    ui.tuneSheet.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  if (ui.tuneBtn) ui.tuneBtn.addEventListener('click', openTuneSheet);
+  if (ui.tuneClose) ui.tuneClose.addEventListener('click', closeTuneSheet);
+  if (ui.tuneScrim) ui.tuneScrim.addEventListener('click', closeTuneSheet);
+
+  // Chip 'Set up' / 'Edit' opens Tune sheet for self-voice; 'Change' (mic)
+  // sends the user back to the setup screen where the picker lives.
+  if (ui.chipSelfVoiceEdit) {
+    ui.chipSelfVoiceEdit.addEventListener('click', openTuneSheet);
+  }
+  if (ui.chipMicEdit) {
+    ui.chipMicEdit.addEventListener('click', () => {
+      showSetup();
+      // Reveal the picker (it's hidden until permission is granted).
+      if (micPermissionGranted && ui.setupMicPick) ui.setupMicPick.hidden = false;
+      // Scroll to the mic step for clarity.
+      if (ui.stepMic && ui.stepMic.scrollIntoView) {
+        try { ui.stepMic.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+      }
+    });
+  }
+
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !ui.sheet.hidden) closeSheet();
+    if (e.key !== 'Escape') return;
+    if (ui.tuneSheet && !ui.tuneSheet.hidden) { closeTuneSheet(); return; }
+    if (!ui.sheet.hidden) closeSheet();
   });
 
   // Initial labels & slider paints
@@ -857,35 +967,37 @@
     if (transcript.restartCount > 0 && (state === 'listening' || state === 'on')) {
       suffix = ' · restarts: ' + transcript.restartCount;
     }
-    ui.transcriptStatus.textContent = text + suffix;
+    // v10: Always prefix with the user-facing Auto/Manual mode so the chip
+    // reads naturally (e.g. "Auto · Listening" or "Auto · Off").
+    const auto = ui.transcriptAutoToggle ? !!ui.transcriptAutoToggle.checked : true;
+    const prefix = auto ? 'Auto' : 'Manual';
+    ui.transcriptStatus.textContent = prefix + ' · ' + text + suffix;
     if (state) ui.transcriptStatus.setAttribute('data-state', state);
     else ui.transcriptStatus.removeAttribute('data-state');
   }
 
   function setTranscriptToggleLabel() {
-    if (ui.transcriptToggleBtn) {
+    // v10: The transcript toggle is now a CHECKBOX (Auto on/off). Disabled
+    // when the platform does not support speech recognition.
+    if (ui.transcriptAutoToggle) {
       if (!transcript.supported) {
-        ui.transcriptToggleBtn.textContent = 'Unavailable';
-        ui.transcriptToggleBtn.disabled = true;
-        ui.transcriptToggleBtn.setAttribute('aria-disabled', 'true');
-        ui.transcriptToggleBtn.setAttribute('aria-pressed', 'false');
+        ui.transcriptAutoToggle.disabled = true;
+        ui.transcriptAutoToggle.checked = false;
+        ui.transcriptAutoToggle.setAttribute('aria-disabled', 'true');
       } else {
-        ui.transcriptToggleBtn.textContent = transcript.enabled ? 'Stop transcript' : 'Start transcript';
-        ui.transcriptToggleBtn.setAttribute('aria-pressed', transcript.enabled ? 'true' : 'false');
-        ui.transcriptToggleBtn.disabled = false;
-        ui.transcriptToggleBtn.removeAttribute('aria-disabled');
+        ui.transcriptAutoToggle.disabled = false;
+        ui.transcriptAutoToggle.removeAttribute('aria-disabled');
       }
     }
     if (ui.transcriptRestartBtn) {
-      // Restart is only useful when the user has the transcript turned on
-      // (or it is supported and might be stuck). Disable when off.
+      // v10: Restart is always available when speech is supported — the user
+      // can use it to forcibly start the transcript even before tapping Start.
       if (!transcript.supported) {
         ui.transcriptRestartBtn.disabled = true;
         ui.transcriptRestartBtn.setAttribute('aria-disabled', 'true');
       } else {
-        ui.transcriptRestartBtn.disabled = !transcript.enabled;
-        if (!transcript.enabled) ui.transcriptRestartBtn.setAttribute('aria-disabled', 'true');
-        else ui.transcriptRestartBtn.removeAttribute('aria-disabled');
+        ui.transcriptRestartBtn.disabled = false;
+        ui.transcriptRestartBtn.removeAttribute('aria-disabled');
       }
     }
   }
@@ -1116,11 +1228,24 @@
     }, 350);
   }
 
-  if (ui.transcriptToggleBtn) {
-    ui.transcriptToggleBtn.addEventListener('click', () => {
+  // v10: Auto checkbox replaces the old start/stop button. When the user
+  // toggles Auto OFF, stop the running recognizer immediately. When they
+  // toggle it ON, start it now (if audio is already running) so the change
+  // takes effect without requiring a restart.
+  if (ui.transcriptAutoToggle) {
+    ui.transcriptAutoToggle.addEventListener('change', () => {
       if (!transcript.supported) return;
-      if (transcript.enabled) stopTranscript();
-      else startTranscript();
+      if (ui.transcriptAutoToggle.checked) {
+        // User just turned Auto on — start now if we're listening.
+        if (running && !transcript.enabled) startTranscript();
+        else if (!transcript.enabled) {
+          // Not listening yet. Update status text only.
+          setTranscriptStatus('Off');
+        }
+      } else {
+        if (transcript.enabled) stopTranscript();
+        else setTranscriptStatus('Off');
+      }
     });
   }
   if (ui.transcriptRestartBtn) {
@@ -1367,8 +1492,9 @@
   }
 
   function showMicWarn(show) {
-    if (!ui.micSourceWarn) return;
-    ui.micSourceWarn.hidden = !show;
+    // v10: drive both the setup-step warning and the compact main-screen banner.
+    if (ui.micSourceWarn) ui.micSourceWarn.hidden = !show;
+    if (ui.micSourceWarnMain) ui.micSourceWarnMain.hidden = !show;
   }
 
   async function refreshMicList(opts) {
@@ -1740,11 +1866,20 @@
     ui.toggleLabel.textContent = 'Stop';
     setStatus('Listening', 'live');
 
-    // NOTE: We deliberately do NOT auto-start the transcript here. On real
-    // iPhones, running a second SpeechRecognition session at the same time as
-    // the Web Audio mic graph often produces a silent recognizer (clear audio,
-    // no `onresult` events). The transcript section now has its own explicit
-    // "Start transcript" button so the user can opt in after audio is stable.
+    // v10: AUTO-START the transcript when Auto is on (default). Wrapped in a
+    // tiny defer so the audio graph has a moment to settle before a second
+    // SpeechRecognition session is opened. iOS Safari can still silently drop
+    // the second session — the transcript watchdog + Restart button surface
+    // that, and the user can flip Auto off to keep speech fully on-device.
+    if (transcript.supported && ui.transcriptAutoToggle && ui.transcriptAutoToggle.checked) {
+      setTimeout(() => {
+        // Re-check that we're still running and the user hasn't flipped Auto
+        // off during the delay.
+        if (running && ui.transcriptAutoToggle.checked && !transcript.enabled) {
+          startTranscript();
+        }
+      }, 350);
+    }
 
     // Request a screen wake lock from this user-gesture call to keep the
     // iPhone awake while listening. Safe no-op if unsupported.
@@ -1786,8 +1921,13 @@
     ui.toggle.classList.remove('is-live');
     ui.toggle.setAttribute('aria-pressed', 'false');
     ui.toggle.setAttribute('aria-label', 'Start Listening');
-    ui.toggleLabel.textContent = 'Start Listening';
-    setStatus('Tap to start', '');
+    // v10: shorter label since the button copy already reads 'Start' under the icon.
+    ui.toggleLabel.textContent = 'Start';
+    setStatus('Idle', '');
+
+    // v10: stop the transcript when audio stops, so SpeechRecognition isn't
+    // left running with no input. Auto checkbox state is preserved for next start.
+    if (transcript.enabled) stopTranscript();
     ui.meter.style.width = '0%';
     ui.clipWarn.hidden = true;
     ui.safetyWarn.hidden = true;
@@ -2365,6 +2505,7 @@
     selfVoice.cancelRequested = false;
     if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'training');
     if (ui.trainSelfVoiceBtn) ui.trainSelfVoiceBtn.disabled = true;
+    if (ui.trainSelfVoiceBtn2) ui.trainSelfVoiceBtn2.disabled = true;
     if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '0%';
     updateSelfVoiceLabels();
 
@@ -2421,11 +2562,14 @@
         }
         await new Promise((r) => setTimeout(r, 700));
       }
-      if (ui.trainSelfVoiceBtn) {
-        ui.trainSelfVoiceBtn.disabled = false;
-        ui.trainSelfVoiceBtn.textContent = 'Stop early';
-        ui.trainSelfVoiceBtn.setAttribute('data-state', 'recording');
-      }
+      // Recording state — the *active* train button (whichever the user
+      // pressed) gets the Stop-early affordance; mirror across both copies.
+      [ui.trainSelfVoiceBtn, ui.trainSelfVoiceBtn2].forEach((btn) => {
+        if (!btn) return;
+        btn.disabled = false;
+        btn.textContent = 'Stop early';
+        btn.setAttribute('data-state', 'recording');
+      });
       if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'recording');
 
       const tBuf = new Float32Array(analyser.fftSize);
@@ -2534,11 +2678,12 @@
       selfVoice.training = false;
       selfVoice.cancelRequested = false;
       if (ui.selfVoiceControl) ui.selfVoiceControl.removeAttribute('data-self-voice');
-      if (ui.trainSelfVoiceBtn) {
-        ui.trainSelfVoiceBtn.disabled = false;
-        ui.trainSelfVoiceBtn.removeAttribute('data-state');
-        ui.trainSelfVoiceBtn.textContent = selfVoice.trained ? 'Retrain my voice' : 'Train my voice';
-      }
+      [ui.trainSelfVoiceBtn, ui.trainSelfVoiceBtn2].forEach((btn) => {
+        if (!btn) return;
+        btn.disabled = false;
+        btn.removeAttribute('data-state');
+        btn.textContent = selfVoice.trained ? 'Retrain my voice' : 'Train my voice';
+      });
       if (ui.selfVoiceProgress) {
         // Briefly hold at 100% on success, then collapse.
         setTimeout(() => { if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '0%'; }, 900);
@@ -2584,6 +2729,8 @@
           setupState.mic = true;
           setStepState(ui.stepMic, 'done', ui.micStatus, 'Already allowed');
           if (ui.checkMicBtn) ui.checkMicBtn.textContent = 'Microphone allowed';
+          // v10: Reveal the mic source picker for return visits.
+          if (ui.setupMicPick) ui.setupMicPick.hidden = false;
           updateContinueState();
           refreshMicList().catch(() => {});
         }
