@@ -2753,7 +2753,13 @@
     selfVoice.training = true;
     selfVoice.cancelRequested = false;
     if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'training');
-    if (ui.selfVoicePrompt) ui.selfVoicePrompt.setAttribute('data-state', 'countdown');
+    if (ui.selfVoicePrompt) {
+      ui.selfVoicePrompt.hidden = false;
+      ui.selfVoicePrompt.setAttribute('data-state', 'countdown');
+    }
+    // v12: also reveal the progress bar (hidden by default in setup) once we start.
+    var __svp = document.querySelector('[data-testid="progress-self-voice"]');
+    if (__svp) __svp.hidden = false;
     if (ui.trainSelfVoiceBtn) ui.trainSelfVoiceBtn.disabled = true;
     if (ui.trainSelfVoiceBtn2) ui.trainSelfVoiceBtn2.disabled = true;
     if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '0%';
@@ -3084,4 +3090,169 @@
       };
     }
   } catch (_) {}
+
+  // ============================================================
+  // v12 — Polish add-ons: launch animation, tooltips, fader hints
+  // ------------------------------------------------------------
+  // Kept after the existing engine wiring so nothing else is touched.
+  // ============================================================
+
+  // --- Launch animation: short, audio-themed, respects reduced motion ---
+  function runLaunchAnimation() {
+    var overlay = document.getElementById('launchAnim');
+    if (!overlay) return;
+    var prefersReduced = false;
+    try {
+      prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch (_) {}
+    var holdMs = prefersReduced ? 120 : 900;
+    setTimeout(function () {
+      overlay.classList.add('is-done');
+      // Fully remove from a11y tree after fade-out finishes.
+      setTimeout(function () {
+        try { overlay.style.display = 'none'; } catch (_) {}
+      }, 320);
+    }, holdMs);
+  }
+
+  // --- Help tooltips for setup helpdots ---
+  var __activeTip = null;
+  function hideActiveTip() {
+    if (__activeTip && __activeTip.parentNode) {
+      __activeTip.classList.remove('is-visible');
+      var t = __activeTip;
+      setTimeout(function () { try { t.parentNode && t.parentNode.removeChild(t); } catch (_) {} }, 160);
+      __activeTip = null;
+    }
+  }
+  function showTipFor(btn) {
+    var text = btn.getAttribute('data-help');
+    if (!text) return;
+    hideActiveTip();
+    var tip = document.createElement('span');
+    tip.className = 'helptip';
+    tip.setAttribute('role', 'tooltip');
+    tip.textContent = text;
+    document.body.appendChild(tip);
+    var rect = btn.getBoundingClientRect();
+    var tipRect = tip.getBoundingClientRect();
+    var top = window.scrollY + rect.bottom + 6;
+    var left = window.scrollX + rect.left + (rect.width / 2) - (tipRect.width / 2);
+    var maxLeft = window.scrollX + document.documentElement.clientWidth - tipRect.width - 8;
+    if (left < 8) left = 8;
+    if (left > maxLeft) left = maxLeft;
+    tip.style.top = top + 'px';
+    tip.style.left = left + 'px';
+    requestAnimationFrame(function () { tip.classList.add('is-visible'); });
+    __activeTip = tip;
+  }
+  function bindHelpdots() {
+    var dots = document.querySelectorAll('.helpdot[data-help]');
+    dots.forEach(function (btn) {
+      // Track whether this dot already opened a tooltip on hover, so a
+      // subsequent click doesn't immediately close it.
+      btn.addEventListener('mouseenter', function () { showTipFor(btn); });
+      btn.addEventListener('mouseleave', hideActiveTip);
+      btn.addEventListener('focus', function () { showTipFor(btn); });
+      btn.addEventListener('blur', hideActiveTip);
+      // On click/tap: always (re-)show the tip for THIS button. Touch users
+      // never get a hover, so click must guarantee the tooltip appears.
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showTipFor(btn);
+      });
+    });
+    document.addEventListener('click', function (e) {
+      // Don't close if the click originated on a helpdot — that handler
+      // already toggles state via stopPropagation, but Playwright/touch
+      // can dispatch multiple events; be defensive with closest().
+      var t = e.target;
+      if (t && t.closest && t.closest('.helpdot')) return;
+      if (__activeTip) hideActiveTip();
+    });
+  }
+
+  // --- Fader hints: one-line description on hover/focus/tap ---
+  var FADER_HINTS = {
+    loudness: {
+      title: 'Headphone loudness',
+      body: 'Overall volume in your headset. Start low and raise until comfortable.'
+    },
+    noise: {
+      title: 'Smooth noise reduction',
+      body: 'Softens background hum without choppy gating. Higher = more quieting.'
+    },
+    clarity: {
+      title: 'Voice clarity',
+      body: 'EQ shape for nearby voices. \u201CRestaurant\u201D works for most rooms.'
+    },
+    even: {
+      title: 'Consistent volume',
+      body: 'Auto-levels loud and quiet voices so they sit at the same volume.'
+    }
+  };
+  function setFaderHint(key) {
+    var bar = document.getElementById('faderHint');
+    if (!bar) return;
+    if (!key || !FADER_HINTS[key]) {
+      bar.classList.remove('is-active');
+      bar.innerHTML = '<span class="fader-hint__placeholder">Tap a control to learn what it does.</span>';
+      return;
+    }
+    var h = FADER_HINTS[key];
+    bar.classList.add('is-active');
+    bar.innerHTML = '<span class="fader-hint__title">' + h.title + '</span>' +
+                    '<span class="fader-hint__body">' + h.body + '</span>';
+  }
+  function bindFaderHints() {
+    var decks = document.querySelectorAll('[data-fader-key]');
+    if (!decks.length) return;
+    decks.forEach(function (deck) {
+      var key = deck.getAttribute('data-fader-key');
+      var slider = deck.querySelector('input[type="range"]');
+      var helpBtn = deck.querySelector('.helpdot[data-help-fader]');
+      var show = function () { setFaderHint(key); };
+      var hideIfNotFocused = function () {
+        // Keep hint visible while another fader inside the mixer has focus.
+        setTimeout(function () {
+          var ae = document.activeElement;
+          if (ae && ae.closest && ae.closest('[data-fader-key]')) return;
+          setFaderHint(null);
+        }, 80);
+      };
+      if (slider) {
+        slider.addEventListener('focus', show);
+        slider.addEventListener('mouseenter', show);
+        slider.addEventListener('pointerdown', show);
+        slider.addEventListener('touchstart', show, { passive: true });
+        slider.addEventListener('input', show);
+        slider.addEventListener('blur', hideIfNotFocused);
+        slider.addEventListener('mouseleave', hideIfNotFocused);
+      }
+      deck.addEventListener('mouseenter', show);
+      deck.addEventListener('mouseleave', hideIfNotFocused);
+      deck.addEventListener('pointerdown', show);
+      if (helpBtn) {
+        helpBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          show();
+        });
+        helpBtn.addEventListener('focus', show);
+      }
+    });
+  }
+
+  // Run after DOM ready — the IIFE itself runs deferred via script defer,
+  // so document.readyState is normally 'interactive' here. Be defensive anyway.
+  function __initPolish() {
+    try { runLaunchAnimation(); } catch (e) { console.warn('launch anim failed', e); }
+    try { bindHelpdots(); } catch (e) { console.warn('helpdot bind failed', e); }
+    try { bindFaderHints(); } catch (e) { console.warn('fader hint bind failed', e); }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', __initPolish);
+  } else {
+    __initPolish();
+  }
 })();

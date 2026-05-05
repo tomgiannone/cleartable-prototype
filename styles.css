@@ -85,14 +85,25 @@ body {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--accent);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }
 .brand--big {
   font-size: 22px;
   margin-bottom: 18px;
+}
+/* v12: bigger brand on setup screen */
+.brand--xl {
+  font-size: 32px;
+  letter-spacing: -0.02em;
+}
+.brand--xl .brand__mark svg { filter: drop-shadow(0 4px 14px rgba(105, 214, 197, 0.30)); }
+/* v12: bigger brand on main screen topbar */
+.brand--lg {
+  font-size: 20px;
+  gap: 9px;
 }
 .brand--small {
   font-size: 15px;
@@ -100,6 +111,22 @@ body {
 }
 .brand__mark { display: inline-flex; }
 .brand__name { color: var(--ink); }
+
+/* v12: brand bar at top of setup screen */
+.brandbar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 8px 0 18px;
+}
+.brandbar--big { gap: 6px; }
+.brandbar__tag {
+  margin: 0;
+  color: var(--ink-mute);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
 
 /* ---------- Setup screen ---------- */
 .setup-wrap {
@@ -233,6 +260,8 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+/* Re-assert hidden over the flex display above. */
+.setup__micpick[hidden] { display: none; }
 .setup__micpick-label {
   font-size: 12px;
   color: var(--ink-mute);
@@ -1170,9 +1199,277 @@ body {
   .bigbtn { width: 156px; height: 156px; }
   .fader { height: 110px; }
   .fader input[type="range"] { width: 90px; }
+  .brand--xl { font-size: 28px; }
 }
 @media (min-width: 480px) {
   .bigbtn { width: 184px; height: 184px; }
   .fader { height: 150px; }
   .fader input[type="range"] { width: 130px; }
 }
+
+/* ============================================================
+   v12 — Polish: launch animation, simpler setup, fader hints
+   ============================================================ */
+
+/* ---------- Launch animation overlay ----------
+   Audio-themed: a centered ear-mark with three expanding sound rings
+   plus a quick waveform sweep. Auto-fades out via JS after ~900ms.
+   Pointer-events disabled so it never blocks taps. */
+.launch {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(60% 60% at 50% 45%, rgba(11, 18, 32, 0.0) 0%, var(--bg) 80%),
+    var(--bg);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 280ms ease;
+  color: var(--accent);
+}
+.launch.is-done {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 280ms ease, visibility 0s linear 280ms;
+}
+.launch__core {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.launch__mark {
+  position: relative;
+  z-index: 2;
+  color: var(--accent);
+  animation: launchMarkIn 700ms cubic-bezier(0.2, 0.7, 0.2, 1.0) both;
+  filter: drop-shadow(0 0 12px rgba(105, 214, 197, 0.55));
+}
+.launch__ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 60px; height: 60px;
+  margin: -30px 0 0 -30px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(105, 214, 197, 0.55);
+  opacity: 0;
+  animation: launchRing 1100ms cubic-bezier(0.2, 0.7, 0.2, 1.0) forwards;
+}
+.launch__ring--1 { animation-delay: 60ms; }
+.launch__ring--2 { animation-delay: 220ms; }
+.launch__ring--3 { animation-delay: 380ms; }
+.launch__wave {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 200px; height: 40px;
+  margin: -20px 0 0 -100px;
+  color: rgba(105, 214, 197, 0.85);
+  opacity: 0;
+  animation: launchWave 900ms cubic-bezier(0.4, 0.0, 0.2, 1) 200ms forwards;
+}
+@keyframes launchMarkIn {
+  0%   { transform: scale(0.55); opacity: 0; }
+  60%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1.0); opacity: 1; }
+}
+@keyframes launchRing {
+  0%   { opacity: 0; transform: scale(0.6); }
+  20%  { opacity: 0.85; }
+  100% { opacity: 0; transform: scale(3.4); }
+}
+@keyframes launchWave {
+  0%   { opacity: 0; transform: translateX(-12px) scaleY(0.7); }
+  40%  { opacity: 1; transform: translateX(0) scaleY(1); }
+  100% { opacity: 0; transform: translateX(12px) scaleY(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .launch__mark { animation: none; }
+  .launch__ring,
+  .launch__wave { display: none; }
+  /* The JS still sets is-done quickly for reduced-motion users. */
+}
+
+/* ---------- v12 Quick-Setup cards ---------- */
+.qs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.qs__card {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 12px;
+  transition: border-color 180ms ease, background 180ms ease, transform 120ms ease;
+}
+.qs__card[data-state="done"] {
+  border-color: rgba(105, 214, 197, 0.40);
+  background: linear-gradient(180deg, rgba(105, 214, 197, 0.05), transparent), var(--bg-card);
+}
+.qs__card[data-state="error"] {
+  border-color: rgba(239, 111, 108, 0.45);
+}
+.qs__card[data-state="checking"] {
+  border-color: rgba(105, 214, 197, 0.30);
+}
+.qs__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-dim);
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+.qs__card[data-state="done"] .qs__icon {
+  background: var(--accent-soft);
+  border-color: rgba(105, 214, 197, 0.45);
+  color: var(--accent);
+}
+.qs__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.qs__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.qs__chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-mute);
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.qs__status {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+.qs__card[data-state="done"] .qs__status { color: var(--accent); }
+.qs__card[data-state="error"] .qs__status { color: var(--error); }
+.qs__actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  grid-column: 3;
+}
+.qs__card .setup__micpick,
+.qs__card .step__troubleshoot,
+.qs__card .selfvoice__prompt,
+.qs__card .selfvoice__progress {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+.qs__card--optional { background: linear-gradient(180deg, var(--bg-card), var(--bg-elev)); }
+
+/* Help dot — small ? bubble next to titles */
+.helpdot {
+  appearance: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-dim);
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  position: relative;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.helpdot:hover, .helpdot:focus-visible {
+  color: var(--accent);
+  border-color: rgba(105, 214, 197, 0.45);
+  background: var(--accent-soft);
+  outline: none;
+}
+.helpdot--mini { width: 16px; height: 16px; font-size: 10px; }
+
+/* Tooltip bubble shown via JS (creates a positioned popover element) */
+.helptip {
+  position: absolute;
+  z-index: 150;
+  max-width: 240px;
+  background: var(--bg-elev);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.5);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+.helptip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- Fader hint bar ---------- */
+.fader-hint {
+  margin: -10px 0 14px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-dim);
+  font-size: 12.5px;
+  line-height: 1.4;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+.fader-hint.is-active {
+  border-color: rgba(105, 214, 197, 0.45);
+  background: linear-gradient(180deg, rgba(105, 214, 197, 0.06), transparent), var(--bg-card);
+  color: var(--ink);
+}
+.fader-hint__placeholder { color: var(--ink-mute); font-style: italic; }
+.fader-hint__title { font-weight: 600; color: var(--accent); margin-right: 6px; }
+
+/* The mixer name now inlines a helpdot — keep one line on tight columns. */
+.mixer__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+  white-space: nowrap;
+}
+.mixer__name .helpdot--mini { width: 14px; height: 14px; font-size: 9px; }
+
+/* Reveal mic-pick row in v12 setup card with cleaner spacing. */
+.qs__card .setup__micpick { padding-top: 4px; }

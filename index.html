@@ -15,101 +15,142 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b1220'/><g fill='none' stroke='%2369d6c5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 22 C7.5 19 7.5 13 11 10 C14.5 7 20 7 22.5 10 C24.5 12.5 24 16 21.5 17.5 C19 19 18 20 18 22 C18 24 16 25 14.5 24'/><circle cx='15.5' cy='14.5' r='1.6' fill='%2369d6c5' stroke='none'/></g></svg>" />
 </head>
 <body>
+  <!-- ===== Launch animation overlay ===== -->
+  <!-- Short, audio-themed sound-ring + waveform pulse. Auto-dismisses after
+       ~900ms (or instantly if prefers-reduced-motion is set). It does NOT
+       block input — pointer-events:none — so taps go through if needed. -->
+  <div class="launch" id="launchAnim" data-testid="animation-launch" aria-hidden="true">
+    <div class="launch__core">
+      <span class="launch__ring launch__ring--1" aria-hidden="true"></span>
+      <span class="launch__ring launch__ring--2" aria-hidden="true"></span>
+      <span class="launch__ring launch__ring--3" aria-hidden="true"></span>
+      <svg class="launch__mark" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
+          <circle cx="22.5" cy="22" r="2.4" fill="currentColor" stroke="none"/>
+        </g>
+      </svg>
+      <svg class="launch__wave" viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 20 Q 12 6 24 20 T 48 20 T 72 20 T 96 20 T 120 20 T 144 20 T 168 20 T 200 20"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+
   <!-- ===== Setup / Onboarding screen ===== -->
   <section class="screen screen--setup is-active" id="screenSetup" data-testid="screen-setup" aria-labelledby="setup-title">
     <div class="setup-wrap">
-      <div class="brand brand--big" aria-label="ClearTable">
-        <span class="brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" width="40" height="40" role="img" aria-hidden="true">
-            <g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
-              <circle cx="22.5" cy="22" r="2.4" fill="currentColor" stroke="none"/>
-            </g>
-          </svg>
+      <header class="brandbar brandbar--big" data-testid="brand-header-setup">
+        <span class="brand brand--xl" aria-label="ClearTable" data-testid="text-app-title">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="56" height="56" role="img" aria-hidden="true">
+              <g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
+                <circle cx="22.5" cy="22" r="2.4" fill="currentColor" stroke="none"/>
+              </g>
+            </svg>
+          </span>
+          <span class="brand__name">ClearTable</span>
         </span>
-        <span class="brand__name">ClearTable</span>
-      </div>
+        <p class="brandbar__tag">Hear the table, not the room.</p>
+      </header>
 
-      <h1 id="setup-title" class="setup__title">Quick setup</h1>
-      <p class="setup__sub">A few taps and you're ready to listen.</p>
+      <h1 id="setup-title" class="visually-hidden">Quick setup</h1>
 
-      <ol class="steps" data-testid="list-setup">
-        <li class="step" id="setupStepPair" data-testid="setup-step-pair" data-state="pending">
-          <span class="step__num" aria-hidden="true">
-            <span class="step__num-text">1</span>
-            <svg class="step__check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </span>
-          <div class="step__body">
-            <div class="step__title">Connect headset</div>
-            <div class="step__desc">Pair earbuds or hearing aids in <strong>Settings → Bluetooth</strong>, then come back.</div>
-            <div class="step__actions">
-              <button type="button" class="btn btn--step btn--step-primary" id="openBtSettingsBtn" data-testid="button-open-bluetooth-settings">Open Bluetooth</button>
-              <button type="button" class="btn btn--step" id="pairConfirmBtn" data-testid="button-confirm-pair">Connected</button>
-              <span class="step__status" id="pairStatus" data-testid="status-pair" aria-live="polite">Not yet</span>
-            </div>
+      <!-- Compact, three-card setup. Heavy copy moved into help tooltips so the
+           default view feels app-like, not document-like. -->
+      <div class="qs" data-testid="list-setup">
+        <!-- Card 1: Headset -->
+        <article class="qs__card" id="setupStepPair" data-testid="setup-step-pair" data-state="pending">
+          <div class="qs__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 14a8 8 0 0 1 16 0"/>
+              <rect x="3" y="14" width="4" height="6" rx="1.5"/>
+              <rect x="17" y="14" width="4" height="6" rx="1.5"/>
+            </svg>
           </div>
-        </li>
-
-        <li class="step" id="setupStepMic" data-testid="setup-step-mic" data-state="pending">
-          <span class="step__num" aria-hidden="true">
-            <span class="step__num-text">2</span>
-            <svg class="step__check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </span>
-          <div class="step__body">
-            <div class="step__title">Allow microphone</div>
-            <div class="step__desc">Tap below and choose <strong>Allow</strong> when Safari asks.</div>
-            <div class="step__actions">
-              <button type="button" class="btn btn--step btn--step-primary" id="checkMicBtn" data-testid="button-check-mic">Allow microphone</button>
-              <span class="step__status" id="micStatus" data-testid="status-mic-permission" aria-live="polite">Not granted</span>
+          <div class="qs__main">
+            <div class="qs__title">
+              Headset
+              <button type="button" class="helpdot" data-help="Pair earbuds or hearing aids in Settings → Bluetooth, then come back." aria-label="Help: Headset" data-testid="help-pair">?</button>
             </div>
-            <div class="setup__micpick" id="setupMicPick" hidden>
-              <label class="setup__micpick-label" for="micSourceSelect">Microphone</label>
-              <div class="setup__micpick-row">
-                <select id="micSourceSelect" data-testid="select-mic-source" class="setup__micpick-select" disabled>
-                  <option value="">Default microphone</option>
-                </select>
-                <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtn" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
-              </div>
-              <p class="setup__micpick-warn" id="micSourceWarn" data-testid="warning-mic-source" hidden>
-                A Bluetooth headset mic is in use. iOS may force this — try an iPhone microphone above. If only the headset is offered, this is a web limit; a native iOS app would route phone-mic to headset reliably.
-              </p>
-            </div>
-            <div class="step__troubleshoot" id="micTroubleshoot" data-testid="text-mic-troubleshoot" hidden></div>
+            <div class="qs__status" id="pairStatus" data-testid="status-pair" aria-live="polite">Not connected</div>
           </div>
-        </li>
+          <div class="qs__actions">
+            <button type="button" class="btn btn--step" id="openBtSettingsBtn" data-testid="button-open-bluetooth-settings" aria-label="Open Bluetooth">Open</button>
+            <button type="button" class="btn btn--step btn--step-primary" id="pairConfirmBtn" data-testid="button-confirm-pair">Done</button>
+          </div>
+        </article>
 
-        <li class="step" id="setupStepSelfVoice" data-testid="setup-step-self-voice" data-state="pending">
-          <span class="step__num" aria-hidden="true">
-            <span class="step__num-text">3</span>
-            <svg class="step__check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </span>
-          <div class="step__body" data-testid="control-self-voice">
-            <div class="step__title">Reduce your own voice <span class="step__optional">optional</span></div>
-            <div class="step__desc">Train a 5-second voice sample so ClearTable can soften your own voice in the headset.</div>
-            <div class="step__actions">
-              <button type="button" class="btn btn--step btn--step-primary" id="trainSelfVoiceBtn" data-testid="button-train-self-voice">Train my voice</button>
-              <button type="button" class="btn btn--step" id="selfVoiceToggleBtn" data-testid="button-self-voice-toggle" aria-pressed="false" aria-disabled="true" disabled>Reduction: Off</button>
-              <span class="step__status" id="selfVoiceStatus" data-testid="status-self-voice" aria-live="polite">Not trained</span>
+        <!-- Card 2: Microphone -->
+        <article class="qs__card" id="setupStepMic" data-testid="setup-step-mic" data-state="pending">
+          <div class="qs__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="3" width="6" height="11" rx="3"/>
+              <path d="M5.5 11a6.5 6.5 0 0 0 13 0"/>
+              <line x1="12" y1="17.5" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <div class="qs__main">
+            <div class="qs__title">
+              Microphone
+              <button type="button" class="helpdot" data-help="Tap Allow so ClearTable can pick up nearby voices. Audio stays on your phone." aria-label="Help: Microphone" data-testid="help-mic">?</button>
             </div>
-            <p class="selfvoice__prompt" id="selfVoicePrompt" data-testid="text-self-voice-prompt" data-state="idle">
-              <span class="selfvoice__prompt-lead">When you tap <strong>Train my voice</strong>, say:</span><br/>
+            <div class="qs__status" id="micStatus" data-testid="status-mic-permission" aria-live="polite">Not granted</div>
+          </div>
+          <div class="qs__actions">
+            <button type="button" class="btn btn--step btn--step-primary" id="checkMicBtn" data-testid="button-check-mic">Allow</button>
+          </div>
+          <!-- Mic source picker, revealed once permission is granted -->
+          <div class="setup__micpick" id="setupMicPick" hidden>
+            <div class="setup__micpick-row">
+              <select id="micSourceSelect" data-testid="select-mic-source" class="setup__micpick-select" aria-label="Microphone source" disabled>
+                <option value="">Default microphone</option>
+              </select>
+              <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtn" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
+            </div>
+            <p class="setup__micpick-warn" id="micSourceWarn" data-testid="warning-mic-source" hidden>
+              Headset mic is in use. Try an iPhone mic for clearer table audio.
+            </p>
+          </div>
+          <div class="step__troubleshoot" id="micTroubleshoot" data-testid="text-mic-troubleshoot" hidden></div>
+        </article>
+
+        <!-- Card 3: Self-voice (optional) -->
+        <article class="qs__card qs__card--optional" id="setupStepSelfVoice" data-testid="setup-step-self-voice" data-state="pending">
+          <div class="qs__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 9v6"/><path d="M9 5v14"/><path d="M13 8v8"/><path d="M17 11v2"/>
+            </svg>
+          </div>
+          <div class="qs__main" data-testid="control-self-voice">
+            <div class="qs__title">
+              Train my voice <span class="qs__chip">optional</span>
+              <button type="button" class="helpdot" data-help="Record a 5-second sample so ClearTable can soften your own voice in the headset. You can also do this later from Tune." aria-label="Help: Train my voice" data-testid="help-self-voice">?</button>
+            </div>
+            <div class="qs__status" id="selfVoiceStatus" data-testid="status-self-voice" aria-live="polite">Not trained</div>
+            <p class="selfvoice__prompt" id="selfVoicePrompt" data-testid="text-self-voice-prompt" data-state="idle" hidden>
+              <span class="selfvoice__prompt-lead">Tap <strong>Train</strong>, then say:</span><br/>
               <em class="selfvoice__prompt-line">“This is my voice. Please reduce my voice while I listen to the table.”</em>
             </p>
-            <div class="selfvoice__progress" data-testid="progress-self-voice" aria-hidden="true">
+            <div class="selfvoice__progress" data-testid="progress-self-voice" aria-hidden="true" hidden>
               <div class="selfvoice__progress-fill" id="selfVoiceProgress"></div>
             </div>
-            <p class="step__hint">Skip if you don't need it. You can train later from the main screen's Tune button.</p>
           </div>
-        </li>
-      </ol>
+          <div class="qs__actions">
+            <button type="button" class="btn btn--step" id="trainSelfVoiceBtn" data-testid="button-train-self-voice">Train</button>
+            <button type="button" class="btn btn--step visually-hidden" id="selfVoiceToggleBtn" data-testid="button-self-voice-toggle" aria-pressed="false" aria-disabled="true" disabled>Reduction: Off</button>
+          </div>
+        </article>
+      </div>
 
       <button type="button" class="btn btn--primary btn--continue is-secondary" id="continueBtn" data-testid="button-continue" aria-disabled="true">
-        I'm ready
+        Continue
       </button>
-      <p class="setup__note" id="continueNote" data-testid="text-continue-note">Allow the microphone above to continue.</p>
+      <p class="setup__note" id="continueNote" data-testid="text-continue-note">Allow the microphone to continue.</p>
 
       <div class="setup__links">
-        <button type="button" class="link-btn" id="skipSetupBtn" data-testid="button-skip-setup">Skip for now</button>
+        <button type="button" class="link-btn" id="skipSetupBtn" data-testid="button-skip-setup">Skip</button>
         <button type="button" class="link-btn" id="setupHelpBtn" data-testid="button-setup-help">Privacy &amp; help</button>
       </div>
     </div>
@@ -117,10 +158,10 @@
 
   <!-- ===== Main listening screen ===== -->
   <section class="screen screen--main" id="screenMain" data-testid="screen-main" aria-labelledby="main-title" hidden>
-    <header class="topbar">
-      <div class="brand brand--small" aria-label="ClearTable">
+    <header class="topbar" data-testid="brand-header-main">
+      <div class="brand brand--lg" aria-label="ClearTable" data-testid="text-app-title-main">
         <span class="brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" width="20" height="20" role="img" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="32" height="32" role="img" aria-hidden="true">
             <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 34 C11 30 11 20 16 16 C21 12 29 12 32.5 16 C35.5 19.5 35 24 31.5 25.5 C28 27 26.5 28.5 26.5 31.5 C26.5 34.5 23.5 36 21 35"/>
               <circle cx="22.5" cy="22" r="2.6" fill="currentColor" stroke="none"/>
@@ -228,31 +269,42 @@
     </div>
 
     <!-- ===== DJ-style mixer: 4 vertical faders ===== -->
+    <!-- Each deck exposes data-fader-key + a tooltip helpdot. The shared
+         hint bar below shows a one-line description on hover/focus/tap. -->
     <section class="mixer" aria-label="Sound controls" data-testid="section-mixer">
-      <div class="mixer__deck" data-testid="control-volume">
+      <div class="mixer__deck" data-testid="control-volume" data-fader-key="loudness">
         <div class="fader">
-          <input id="gain" type="range" min="0" max="18" step="1" value="6" data-testid="slider-gain" aria-label="Headphone loudness" orient="vertical" />
+          <input id="gain" type="range" min="0" max="18" step="1" value="6" data-testid="slider-gain" aria-label="Headphone loudness" aria-describedby="faderHint" orient="vertical" />
           <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <div class="mixer__name">Loudness</div>
+        <div class="mixer__name">
+          Loudness
+          <button type="button" class="helpdot helpdot--mini" data-help-fader="loudness" aria-label="What does Loudness do?">?</button>
+        </div>
         <div class="mixer__val" id="gainVal" data-testid="text-gain-value">Normal</div>
       </div>
 
-      <div class="mixer__deck" data-testid="control-noise">
+      <div class="mixer__deck" data-testid="control-noise" data-fader-key="noise">
         <div class="fader">
-          <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" data-testid="slider-gate" aria-label="Smooth Noise Reduction" orient="vertical" />
+          <input id="gate" type="range" min="-80" max="-20" step="1" value="-50" data-testid="slider-gate" aria-label="Smooth Noise Reduction" aria-describedby="faderHint" orient="vertical" />
           <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <div class="mixer__name">Noise</div>
+        <div class="mixer__name">
+          Noise
+          <button type="button" class="helpdot helpdot--mini" data-help-fader="noise" aria-label="What does Noise do?">?</button>
+        </div>
         <div class="mixer__val" id="gateVal" data-testid="text-gate-value">High</div>
       </div>
 
-      <div class="mixer__deck" data-testid="control-clarity">
+      <div class="mixer__deck" data-testid="control-clarity" data-fader-key="clarity">
         <div class="fader">
-          <input id="clarity" type="range" min="0" max="4" step="1" value="2" data-testid="slider-clarity" aria-label="Voice Clarity" orient="vertical" />
+          <input id="clarity" type="range" min="0" max="4" step="1" value="2" data-testid="slider-clarity" aria-label="Voice Clarity" aria-describedby="faderHint" orient="vertical" />
           <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <div class="mixer__name">Clarity</div>
+        <div class="mixer__name">
+          Clarity
+          <button type="button" class="helpdot helpdot--mini" data-help-fader="clarity" aria-label="What does Clarity do?">?</button>
+        </div>
         <div class="mixer__val" id="clarityVal" data-testid="text-clarity-value">Restaurant</div>
         <select id="preset" data-testid="select-preset" class="visually-hidden" aria-hidden="true" tabindex="-1">
           <option value="warm">Warmer</option>
@@ -263,18 +315,26 @@
         </select>
       </div>
 
-      <div class="mixer__deck" data-testid="control-auto-level">
+      <div class="mixer__deck" data-testid="control-auto-level" data-fader-key="even">
         <div class="fader">
-          <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-auto-level" aria-label="Consistent volume strength" orient="vertical" />
+          <input id="autoLevelStrength" type="range" min="0" max="3" step="1" value="3" data-testid="slider-auto-level" aria-label="Consistent volume strength" aria-describedby="faderHint" orient="vertical" />
           <span class="fader__cap" aria-hidden="true"></span>
         </div>
-        <div class="mixer__name">Even</div>
+        <div class="mixer__name">
+          Even
+          <button type="button" class="helpdot helpdot--mini" data-help-fader="even" aria-label="What does Even do?">?</button>
+        </div>
         <div class="mixer__val" id="autoLevelStatus" data-testid="status-auto-level">On · Strong</div>
         <!-- legacy state (kept for tests) -->
         <input type="checkbox" id="autoLevelToggle" data-testid="toggle-auto-level" checked class="visually-hidden" aria-hidden="true" tabindex="-1" />
         <span class="visually-hidden" id="autoLevelHeadStatus" data-testid="text-auto-level-headline">Consistent volume on</span>
       </div>
     </section>
+
+    <!-- Shared fader hint bar. Default empty; populated on hover/focus/tap. -->
+    <p class="fader-hint" id="faderHint" data-testid="text-fader-hint" aria-live="polite">
+      <span class="fader-hint__placeholder">Tap a control to learn what it does.</span>
+    </p>
 
     <!-- ===== Live transcript ===== -->
     <section class="transcript" id="transcriptSection" data-testid="section-transcript" aria-labelledby="transcript-title">
