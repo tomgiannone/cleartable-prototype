@@ -118,6 +118,7 @@
     selfVoiceControl: document.querySelector('[data-testid="control-self-voice"]'),
     selfVoiceProgress: $('selfVoiceProgress'),
     selfVoicePrompt: $('selfVoicePrompt'),
+    selfVoicePromptLead: null,    // resolved lazily after DOM ready
 
     // v5 — Background-audio note
     backgroundAudioWarn: $('backgroundAudioWarn'),
@@ -145,6 +146,14 @@
     refreshMicsBtn: $('refreshMicsBtn'),
     activeMicStatus: $('activeMicStatus'),
     micSourceWarn: $('micSourceWarn'),
+    // v11 — Main-screen mic picker (popover) controls
+    micSourceSelectMain: $('micSourceSelectMain'),
+    refreshMicsBtnMain: $('refreshMicsBtnMain'),
+    micPop: $('micPop'),
+    micPopClose: $('micPopClose'),
+    micPopHint: $('micPopHint'),
+    // v11 — Canvas waveform that replaces the jumpy meter bar
+    waveformCanvas: $('waveformCanvas'),
 
     // Transcript
     transcriptSection: $('transcriptSection'),
@@ -909,17 +918,35 @@
   if (ui.chipSelfVoiceEdit) {
     ui.chipSelfVoiceEdit.addEventListener('click', openTuneSheet);
   }
+  // v11: 'Change' on the main mic chip opens an inline popover INSIDE the
+  // listening screen instead of navigating back to setup. Setup mic
+  // controls remain available; this is purely additive for the listening
+  // page so users do not lose their place mid-conversation.
+  function openMicPop() {
+    if (!ui.micPop) return;
+    ui.micPop.hidden = false;
+    ui.micPop.setAttribute('aria-hidden', 'false');
+    if (ui.chipMicEdit) ui.chipMicEdit.setAttribute('aria-expanded', 'true');
+    // Refresh device list so labels show after permission was granted.
+    refreshMicList().catch(() => {});
+    // Focus the select for keyboard users on desktop; iOS will not steal
+    // focus aggressively which is fine.
+    try { ui.micSourceSelectMain && ui.micSourceSelectMain.focus({ preventScroll: true }); } catch (_) {}
+  }
+  function closeMicPop() {
+    if (!ui.micPop) return;
+    ui.micPop.hidden = true;
+    ui.micPop.setAttribute('aria-hidden', 'true');
+    if (ui.chipMicEdit) ui.chipMicEdit.setAttribute('aria-expanded', 'false');
+  }
   if (ui.chipMicEdit) {
     ui.chipMicEdit.addEventListener('click', () => {
-      showSetup();
-      // Reveal the picker (it's hidden until permission is granted).
-      if (micPermissionGranted && ui.setupMicPick) ui.setupMicPick.hidden = false;
-      // Scroll to the mic step for clarity.
-      if (ui.stepMic && ui.stepMic.scrollIntoView) {
-        try { ui.stepMic.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
-      }
+      // Toggle the inline popover. Do NOT navigate to setup.
+      if (!ui.micPop || ui.micPop.hidden) openMicPop();
+      else closeMicPop();
     });
   }
+  if (ui.micPopClose) ui.micPopClose.addEventListener('click', closeMicPop);
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -933,6 +960,11 @@
   updateClarityLabel();
   updateAutoLevelLabel();
   updateSelfVoiceLabels();
+  // Defer initWaveform to next tick so the `waveform` const (declared
+  // further down in this IIFE) has been initialized by the time we touch it.
+  // Without this, a TDZ error ("Cannot access 'waveform' before initialization")
+  // crashes module setup.
+  setTimeout(() => { try { initWaveform(); } catch (e) { try { console.warn('initWaveform failed', e); } catch (_) {} } }, 0);
 
   // ---------- Live transcript (Web Speech API) ----------
   // The transcript uses the browser's SpeechRecognition. On iOS Safari this
@@ -1521,9 +1553,10 @@
     micPicker.devices = devices;
     micPicker.populated = true;
 
-    // Repopulate the <select>.
-    const sel = ui.micSourceSelect;
-    if (sel) {
+    // Repopulate any <select> bound to the device list. v11 adds a second
+    // select on the main screen so users can change mic without navigating.
+    function fillSelect(sel) {
+      if (!sel) return;
       const previous = micPicker.selectedId;
       sel.innerHTML = '';
       const defaultOpt = document.createElement('option');
@@ -1538,17 +1571,18 @@
         opt.textContent = dev.label + tag;
         sel.appendChild(opt);
       }
-      // Re-select the previously chosen device if still available.
       if (previous && devices.some((d) => d.deviceId === previous)) {
         sel.value = previous;
       } else {
         sel.value = '';
-        micPicker.selectedId = '';
       }
-      // Enable the dropdown only if the user has actual choice.
       const realCount = devices.filter((d) => d.deviceId).length;
       sel.disabled = realCount < 2;
     }
+    fillSelect(ui.micSourceSelect);
+    fillSelect(ui.micSourceSelectMain);
+    // Sync canonical selectedId after fillSelect (if previous was unavailable).
+    if (ui.micSourceSelect && !ui.micSourceSelect.value) micPicker.selectedId = '';
 
     // Update the active-mic status if we're not currently listening.
     if (!running) {
@@ -1568,27 +1602,43 @@
     return devices;
   }
 
-  if (ui.micSourceSelect) {
-    ui.micSourceSelect.addEventListener('change', async () => {
-      micPicker.selectedId = ui.micSourceSelect.value || '';
-      // Reflect the choice in the active-mic status while idle.
-      if (!running) {
-        const dev = micPicker.devices.find((d) => d.deviceId === micPicker.selectedId);
-        if (dev) {
-          setActiveMicStatus(dev.label, dev.isHeadset ? 'warn' : (dev.isPhoneMic ? 'ok' : ''));
-          showMicWarn(!!dev.isHeadset);
-        } else {
-          setActiveMicStatus('Default microphone', '');
-          showMicWarn(false);
-        }
+  // v11: shared change handler so both the setup <select> and the new
+  // main-screen popover <select> drive the same canonical mic selection.
+  async function handleMicSelectChange(value) {
+    micPicker.selectedId = value || '';
+    // Mirror across both selects so they don't drift.
+    if (ui.micSourceSelect && ui.micSourceSelect.value !== micPicker.selectedId) {
+      ui.micSourceSelect.value = micPicker.selectedId;
+    }
+    if (ui.micSourceSelectMain && ui.micSourceSelectMain.value !== micPicker.selectedId) {
+      ui.micSourceSelectMain.value = micPicker.selectedId;
+    }
+    if (!running) {
+      const dev = micPicker.devices.find((d) => d.deviceId === micPicker.selectedId);
+      if (dev) {
+        setActiveMicStatus(dev.label, dev.isHeadset ? 'warn' : (dev.isPhoneMic ? 'ok' : ''));
+        showMicWarn(!!dev.isHeadset);
       } else {
-        // Live-swap: restart the audio chain with the new deviceId.
-        try { await restartWithSelectedMic(); } catch (_) {}
+        setActiveMicStatus('Default microphone', '');
+        showMicWarn(false);
       }
-    });
+    } else {
+      // Live-swap: restart the audio chain with the new deviceId. Stays
+      // on the listening screen so the user does not lose context.
+      try { await restartWithSelectedMic(); } catch (_) {}
+    }
+  }
+  if (ui.micSourceSelect) {
+    ui.micSourceSelect.addEventListener('change', () => handleMicSelectChange(ui.micSourceSelect.value || ''));
+  }
+  if (ui.micSourceSelectMain) {
+    ui.micSourceSelectMain.addEventListener('change', () => handleMicSelectChange(ui.micSourceSelectMain.value || ''));
   }
   if (ui.refreshMicsBtn) {
     ui.refreshMicsBtn.addEventListener('click', () => refreshMicList({ user: true }));
+  }
+  if (ui.refreshMicsBtnMain) {
+    ui.refreshMicsBtnMain.addEventListener('click', () => refreshMicList({ user: true }));
   }
 
   async function restartWithSelectedMic() {
@@ -1629,6 +1679,7 @@
         if (Array.from(ui.micSourceSelect.options).some((o) => o.value === realId)) {
           ui.micSourceSelect.value = realId;
           micPicker.selectedId = realId;
+          if (ui.micSourceSelectMain) ui.micSourceSelectMain.value = realId;
         }
       }
     }
@@ -2164,6 +2215,196 @@
     if (kind === 'error') ui.status.classList.add('is-error');
   }
 
+  // ---------- v11: Smooth canvas waveform visualization ----------
+  // Replaces the old <div class="meter__fill"> bar that jumped frame-to-frame.
+  // We keep a rolling buffer of low-passed amplitude samples and draw a
+  // continuous mirrored wave on a 2D canvas. The buffer is updated each
+  // animation frame from the same envelope used to drive the audio engine
+  // so the visualization is intrinsically de-jittered.
+  const waveform = {
+    canvas: null,
+    ctx: null,
+    width: 0,
+    height: 0,
+    dpr: 1,
+    samples: null,        // Float32Array, ring buffer of smoothed amplitudes
+    head: 0,              // ring buffer write index
+    size: 96,             // number of points across the canvas
+    smooth: 0,            // EMA-smoothed amplitude (0..1)
+    phase: 0,             // for idle drift animation
+    rafId: null,
+    running: false,
+  };
+
+  function initWaveform() {
+    const canvas = ui.waveformCanvas;
+    if (!canvas || waveform.ctx) return;
+    waveform.canvas = canvas;
+    waveform.ctx = canvas.getContext('2d');
+    if (!waveform.ctx) return;
+    waveform.samples = new Float32Array(waveform.size);
+    sizeWaveformCanvas();
+    // Re-size on viewport change (orientation, font scaling, etc.).
+    if (window.ResizeObserver) {
+      try {
+        const ro = new ResizeObserver(() => sizeWaveformCanvas());
+        ro.observe(canvas);
+      } catch (_) {}
+    }
+    window.addEventListener('resize', sizeWaveformCanvas);
+    // Always run an idle animation so the canvas never looks dead, even
+    // before audio has started. Once running, real samples take over.
+    startWaveformLoop();
+  }
+
+  function sizeWaveformCanvas() {
+    if (!waveform.canvas || !waveform.ctx) return;
+    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    const cssW = Math.max(40, waveform.canvas.clientWidth || 280);
+    const cssH = Math.max(24, waveform.canvas.clientHeight || 56);
+    waveform.canvas.width = Math.round(cssW * dpr);
+    waveform.canvas.height = Math.round(cssH * dpr);
+    waveform.width = cssW;
+    waveform.height = cssH;
+    waveform.dpr = dpr;
+    waveform.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // Push a new amplitude sample (already smoothed). The drawer reads from
+  // this ring buffer so the visualization is decoupled from how often we
+  // call pushWaveformSample().
+  function pushWaveformSample(amp) {
+    if (!waveform.samples) return;
+    // Extra low-pass: blend new sample into a single-pole EMA so even a
+    // sudden peak only gradually shifts the displayed wave height.
+    const alphaUp = 0.32;   // ~3 frames to rise
+    const alphaDown = 0.08; // ~12 frames to fall
+    const a = amp > waveform.smooth ? alphaUp : alphaDown;
+    waveform.smooth += (amp - waveform.smooth) * a;
+    waveform.samples[waveform.head] = waveform.smooth;
+    waveform.head = (waveform.head + 1) % waveform.samples.length;
+  }
+
+  function startWaveformLoop() {
+    if (waveform.running) return;
+    waveform.running = true;
+    const loop = () => {
+      if (!waveform.running) return;
+      drawWaveform();
+      waveform.rafId = requestAnimationFrame(loop);
+    };
+    waveform.rafId = requestAnimationFrame(loop);
+  }
+
+  // Map normalizer indicator state to a tint hue so the waveform colour
+  // shifts subtly while reducing/boosting. Steady = teal; reduce = warn;
+  // boost = brighter teal; off = muted ink.
+  function waveformTint(state) {
+    switch (state) {
+      case 'reduce': return { stroke: 'rgba(243, 183, 85, 0.95)', fill: 'rgba(243, 183, 85, 0.18)' };
+      case 'boost':  return { stroke: 'rgba(174, 240, 225, 0.95)', fill: 'rgba(105, 214, 197, 0.22)' };
+      case 'off':    return { stroke: 'rgba(174, 187, 205, 0.55)', fill: 'rgba(174, 187, 205, 0.10)' };
+      default:       return { stroke: 'rgba(105, 214, 197, 0.95)', fill: 'rgba(105, 214, 197, 0.18)' };
+    }
+  }
+
+  function drawWaveform() {
+    if (!waveform.ctx || !waveform.samples) return;
+    const ctx = waveform.ctx;
+    const W = waveform.width, H = waveform.height;
+    const mid = H / 2;
+    ctx.clearRect(0, 0, W, H);
+
+    // Subtle baseline grid.
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, mid + 0.5);
+    ctx.lineTo(W, mid + 0.5);
+    ctx.stroke();
+
+    // Idle drift so the canvas always looks alive even when audio is silent.
+    waveform.phase += 0.04;
+    const driftBase = 0.04 + 0.02 * Math.sin(waveform.phase * 0.7);
+
+    const tint = waveformTint(
+      ui.consistentVolumeIndicator
+        ? (ui.consistentVolumeIndicator.getAttribute('data-state') || 'steady')
+        : 'steady'
+    );
+
+    const N = waveform.samples.length;
+    const stepX = W / (N - 1);
+    // Read ring buffer in chronological order: oldest at head, newest at head-1.
+    const points = new Array(N);
+    for (let i = 0; i < N; i++) {
+      const idx = (waveform.head + i) % N;
+      const v = waveform.samples[idx];
+      // Combine: real smoothed amplitude + tiny idle drift so silence still
+      // shows a gentle living waveform instead of a flat line. Drift is
+      // phase-modulated per index so it looks like a wave, not a hum.
+      const drift = driftBase * Math.sin(waveform.phase + i * 0.42);
+      // Map 0..0.6 amplitude to 0..1 of half-canvas height (audio rarely hits 1.0).
+      const norm = Math.min(1, (v / 0.45));
+      const y = norm * (mid - 4) + Math.abs(drift) * 6;
+      points[i] = { x: i * stepX, y };
+    }
+
+    // Filled mirrored area (top + bottom) using bezier-smoothed path.
+    function buildPath(sign) {
+      ctx.beginPath();
+      ctx.moveTo(0, mid);
+      for (let i = 0; i < N; i++) {
+        const p = points[i];
+        const x = p.x;
+        const y = mid + sign * p.y;
+        if (i === 0) {
+          ctx.lineTo(x, y);
+        } else {
+          const prev = points[i - 1];
+          const px = prev.x;
+          const py = mid + sign * prev.y;
+          const cx = (px + x) / 2;
+          ctx.quadraticCurveTo(px, py, cx, (py + y) / 2);
+        }
+      }
+      ctx.lineTo(W, mid);
+    }
+
+    // Filled body.
+    ctx.fillStyle = tint.fill;
+    buildPath(-1);
+    ctx.lineTo(W, mid);
+    ctx.closePath();
+    ctx.fill();
+    buildPath(+1);
+    ctx.lineTo(0, mid);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stroked edges for crispness.
+    ctx.strokeStyle = tint.stroke;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    buildPath(-1);
+    ctx.stroke();
+    buildPath(+1);
+    ctx.stroke();
+  }
+
+  // Dev hook: expose pushWaveformSample for smoke tests. Tests can drive a
+  // synthetic envelope without needing a working microphone graph.
+  try {
+    window.__cleartableDevhook = window.__cleartableDevhook || {};
+    window.__cleartableDevhook.pushWaveformSample = pushWaveformSample;
+    window.__cleartableDevhook.setConsistentVolumeState = function (state) {
+      if (ui.consistentVolumeIndicator) {
+        ui.consistentVolumeIndicator.setAttribute('data-state', state || 'steady');
+      }
+    };
+  } catch (_) {}
+
   // ---------- v5: smoothed envelope + dynamics loop ----------
   // Replaces the old binary noise gate. We compute a smoothed RMS envelope,
   // then drive three independent gain stages each frame:
@@ -2457,12 +2698,20 @@
       // ---- 6) Meter + warnings ----
       nodes.meter.getFloatTimeDomainData(meterBuf);
       let peak = 0;
+      let sumSqOut = 0;
       for (let i = 0; i < meterBuf.length; i++) {
         const v = Math.abs(meterBuf[i]);
         if (v > peak) peak = v;
+        sumSqOut += meterBuf[i] * meterBuf[i];
       }
+      const rmsOut = Math.sqrt(sumSqOut / meterBuf.length);
+      // v11: feed the canvas waveform with a softly-smoothed amplitude.
+      // Combine 80% peak + 20% RMS so the wave is responsive to syllables
+      // but not jittery on consonant transients.
+      pushWaveformSample(0.8 * peak + 0.2 * rmsOut);
+      // Keep legacy bar fill in sync for any tests that read meter-input.
       const pct = Math.min(100, peak * 100);
-      ui.meter.style.width = pct.toFixed(1) + '%';
+      if (ui.meter && ui.meter.style) ui.meter.style.width = pct.toFixed(1) + '%';
 
       const now = performance.now();
       if (peak >= 0.98) {
@@ -2504,6 +2753,7 @@
     selfVoice.training = true;
     selfVoice.cancelRequested = false;
     if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'training');
+    if (ui.selfVoicePrompt) ui.selfVoicePrompt.setAttribute('data-state', 'countdown');
     if (ui.trainSelfVoiceBtn) ui.trainSelfVoiceBtn.disabled = true;
     if (ui.trainSelfVoiceBtn2) ui.trainSelfVoiceBtn2.disabled = true;
     if (ui.selfVoiceProgress) ui.selfVoiceProgress.style.width = '0%';
@@ -2571,6 +2821,7 @@
         btn.setAttribute('data-state', 'recording');
       });
       if (ui.selfVoiceControl) ui.selfVoiceControl.setAttribute('data-self-voice', 'recording');
+      if (ui.selfVoicePrompt) ui.selfVoicePrompt.setAttribute('data-state', 'recording');
 
       const tBuf = new Float32Array(analyser.fftSize);
       const fBins = spectrumNode.frequencyBinCount;
@@ -2678,6 +2929,7 @@
       selfVoice.training = false;
       selfVoice.cancelRequested = false;
       if (ui.selfVoiceControl) ui.selfVoiceControl.removeAttribute('data-self-voice');
+      if (ui.selfVoicePrompt) ui.selfVoicePrompt.setAttribute('data-state', 'idle');
       [ui.trainSelfVoiceBtn, ui.trainSelfVoiceBtn2].forEach((btn) => {
         if (!btn) return;
         btn.disabled = false;

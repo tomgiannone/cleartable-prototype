@@ -575,6 +575,30 @@ body {
   background: linear-gradient(90deg, var(--accent), #aef0e1);
   transition: width 60ms linear;
 }
+
+/* v11 — Smooth canvas waveform replaces the jumpy bar.
+   Renders a continuous, low-passed amplitude curve so the visualization
+   feels app-like instead of frame-by-frame snappy. */
+.metercard--wave {
+  padding: 10px 12px 8px;
+  gap: 6px;
+}
+.wavewrap {
+  position: relative;
+  width: 100%;
+  height: 56px;
+  border-radius: 10px;
+  background:
+    radial-gradient(120% 90% at 50% 100%, rgba(105, 214, 197, 0.10), transparent 60%),
+    var(--bg-elev);
+  overflow: hidden;
+  border: 1px solid rgba(105, 214, 197, 0.10);
+}
+.wavecanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .metercard__row {
   display: flex;
   justify-content: space-between;
@@ -594,6 +618,94 @@ body {
 }
 .metercard__indicator[data-state="off"] {
   color: var(--ink-mute);
+}
+
+/* v11 — Compact main-screen mic picker popover. Lives inside the
+   listening screen so users can change mic without navigating to setup. */
+.micpop {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: micpopIn 160ms ease;
+}
+/* The HTML `hidden` attribute is normally `display: none`, but our `.micpop`
+   rule above sets `display: flex` which would override it. Re-assert hidden. */
+.micpop[hidden] { display: none; }
+@keyframes micpopIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.micpop__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.micpop__label {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  flex: 0 0 auto;
+}
+.micpop__select {
+  flex: 1 1 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-elev);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  min-height: 36px;
+}
+.micpop__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.micpop__hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  line-height: 1.4;
+}
+
+/* v11 — Self-voice prompt: clearer at-rest + active states. */
+.selfvoice__prompt {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px dashed rgba(105, 214, 197, 0.25);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+.selfvoice__prompt-lead { color: var(--ink-mute); font-size: 12.5px; }
+.selfvoice__prompt-line {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-style: italic;
+  font-weight: 500;
+}
+.selfvoice__prompt[data-state="recording"] {
+  background: rgba(105, 214, 197, 0.10);
+  border-color: rgba(105, 214, 197, 0.55);
+  border-style: solid;
+  color: var(--ink);
+}
+.selfvoice__prompt[data-state="recording"] .selfvoice__prompt-line {
+  color: var(--accent);
+}
+.selfvoice__prompt[data-state="countdown"] {
+  border-color: rgba(243, 183, 85, 0.55);
+  background: var(--warn-soft);
+  color: var(--ink);
 }
 
 /* ---------- Warnings ---------- */

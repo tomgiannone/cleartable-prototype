@@ -91,9 +91,9 @@
               <button type="button" class="btn btn--step" id="selfVoiceToggleBtn" data-testid="button-self-voice-toggle" aria-pressed="false" aria-disabled="true" disabled>Reduction: Off</button>
               <span class="step__status" id="selfVoiceStatus" data-testid="status-self-voice" aria-live="polite">Not trained</span>
             </div>
-            <p class="selfvoice__prompt" id="selfVoicePrompt" data-testid="text-self-voice-prompt" hidden>
-              Read this aloud at a normal voice — keep going until the timer ends:<br/>
-              <em>"This is my voice. Please reduce my voice while I listen to the table."</em>
+            <p class="selfvoice__prompt" id="selfVoicePrompt" data-testid="text-self-voice-prompt" data-state="idle">
+              <span class="selfvoice__prompt-lead">When you tap <strong>Train my voice</strong>, say:</span><br/>
+              <em class="selfvoice__prompt-line">“This is my voice. Please reduce my voice while I listen to the table.”</em>
             </p>
             <div class="selfvoice__progress" data-testid="progress-self-voice" aria-hidden="true">
               <div class="selfvoice__progress-fill" id="selfVoiceProgress"></div>
@@ -156,7 +156,7 @@
         <span class="chip chip--mic" data-testid="chip-mic">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="17.5" x2="12" y2="21"/></svg>
           <span class="chip__label" id="activeMicStatus" data-testid="status-active-mic">—</span>
-          <button type="button" class="chip__edit" id="chipMicEdit" data-testid="button-mic-edit" aria-label="Choose microphone">Change</button>
+          <button type="button" class="chip__edit" id="chipMicEdit" data-testid="button-mic-edit" aria-label="Choose microphone" aria-haspopup="true" aria-expanded="false">Change</button>
         </span>
         <span class="chip chip--status" id="status" data-testid="status-monitor" aria-live="polite">Idle</span>
       </div>
@@ -165,6 +165,23 @@
       <p class="warn warn--mic" id="micSourceWarnMain" data-testid="warning-mic-source-main" hidden>
         Headset mic is being used. Tap <em>Change</em> and pick an iPhone microphone if available.
       </p>
+
+      <!-- v11: Compact main-screen microphone picker (popover). Lets users
+           change the mic without leaving the listening page. Lives inside
+           the main screen so navigation stays put. -->
+      <div class="micpop" id="micPop" data-testid="popover-mic-source-main" hidden aria-hidden="true">
+        <div class="micpop__row">
+          <label class="micpop__label" for="micSourceSelectMain">Microphone</label>
+          <select id="micSourceSelectMain" class="micpop__select" data-testid="select-mic-source" aria-label="Select microphone">
+            <option value="">Default microphone</option>
+          </select>
+        </div>
+        <div class="micpop__actions">
+          <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtnMain" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
+          <button type="button" class="btn btn--ghost btn--mini" id="micPopClose" data-testid="button-mic-popover-close" aria-label="Close mic picker">Done</button>
+        </div>
+        <p class="micpop__hint" id="micPopHint">Pick an iPhone mic for best results. Headset mic may be forced by iOS Safari.</p>
+      </div>
 
       <!-- Self-voice chip on main -->
       <div class="chiprow chiprow--secondary">
@@ -190,12 +207,15 @@
         </span>
       </button>
 
-      <!-- Input level + consistent-volume readout -->
-      <div class="metercard">
-        <div class="meter" aria-label="Microphone input level">
-          <div class="meter__track">
-            <div class="meter__fill" id="meter" data-testid="meter-input"></div>
-          </div>
+      <!-- Input level + consistent-volume waveform visualization -->
+      <div class="metercard metercard--wave">
+        <div class="wavewrap" aria-label="Live volume waveform">
+          <canvas id="waveformCanvas" class="wavecanvas"
+                  data-testid="canvas-waveform-volume"
+                  aria-hidden="true"></canvas>
+          <span class="visually-hidden" data-testid="waveform-consistent-volume" id="waveformConsistentVolume">Volume waveform</span>
+          <!-- Hidden legacy bar fill kept for backcompat with meter-input testid -->
+          <span class="visually-hidden"><span id="meter" data-testid="meter-input"></span></span>
         </div>
         <div class="metercard__row">
           <span class="metercard__label">Consistent volume</span>
