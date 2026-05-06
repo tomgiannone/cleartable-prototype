@@ -3105,7 +3105,8 @@
     try {
       prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     } catch (_) {}
-    var holdMs = prefersReduced ? 120 : 900;
+    // Extended to ~4s on user request; reduced-motion users still get a brief flash.
+    var holdMs = prefersReduced ? 200 : 4000;
     setTimeout(function () {
       overlay.classList.add('is-done');
       // Fully remove from a11y tree after fade-out finishes.

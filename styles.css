@@ -1213,7 +1213,7 @@ body {
 
 /* ---------- Launch animation overlay ----------
    Audio-themed: a centered ear-mark with three expanding sound rings
-   plus a quick waveform sweep. Auto-fades out via JS after ~900ms.
+   plus a waveform sweep. Auto-fades out via JS after ~4000ms.
    Pointer-events disabled so it never blocks taps. */
 .launch {
   position: fixed;
@@ -1247,7 +1247,9 @@ body {
   position: relative;
   z-index: 2;
   color: var(--accent);
-  animation: launchMarkIn 700ms cubic-bezier(0.2, 0.7, 0.2, 1.0) both;
+  animation:
+    launchMarkIn 900ms cubic-bezier(0.2, 0.7, 0.2, 1.0) both,
+    launchMarkPulse 1600ms ease-in-out 900ms infinite;
   filter: drop-shadow(0 0 12px rgba(105, 214, 197, 0.55));
 }
 .launch__ring {
@@ -1258,11 +1260,11 @@ body {
   border-radius: 50%;
   border: 1.5px solid rgba(105, 214, 197, 0.55);
   opacity: 0;
-  animation: launchRing 1100ms cubic-bezier(0.2, 0.7, 0.2, 1.0) forwards;
+  animation: launchRing 1800ms cubic-bezier(0.2, 0.7, 0.2, 1.0) infinite;
 }
 .launch__ring--1 { animation-delay: 60ms; }
-.launch__ring--2 { animation-delay: 220ms; }
-.launch__ring--3 { animation-delay: 380ms; }
+.launch__ring--2 { animation-delay: 660ms; }
+.launch__ring--3 { animation-delay: 1260ms; }
 .launch__wave {
   position: absolute;
   top: 50%; left: 50%;
@@ -1270,7 +1272,7 @@ body {
   margin: -20px 0 0 -100px;
   color: rgba(105, 214, 197, 0.85);
   opacity: 0;
-  animation: launchWave 900ms cubic-bezier(0.4, 0.0, 0.2, 1) 200ms forwards;
+  animation: launchWave 1600ms cubic-bezier(0.4, 0.0, 0.2, 1) 300ms infinite;
 }
 @keyframes launchMarkIn {
   0%   { transform: scale(0.55); opacity: 0; }
@@ -1286,6 +1288,10 @@ body {
   0%   { opacity: 0; transform: translateX(-12px) scaleY(0.7); }
   40%  { opacity: 1; transform: translateX(0) scaleY(1); }
   100% { opacity: 0; transform: translateX(12px) scaleY(0.9); }
+}
+@keyframes launchMarkPulse {
+  0%, 100% { transform: scale(1.0); filter: drop-shadow(0 0 12px rgba(105, 214, 197, 0.55)); }
+  50%      { transform: scale(1.04); filter: drop-shadow(0 0 18px rgba(105, 214, 197, 0.75)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .launch__mark { animation: none; }
