@@ -109,6 +109,9 @@
               </select>
               <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtn" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
             </div>
+            <div class="setup__micpick-row">
+              <button type="button" class="btn btn--ghost btn--mini setup__usephone" id="usePhoneMicBtn" data-testid="button-use-phone-mic" aria-label="Use iPhone microphone" hidden>Use iPhone mic</button>
+            </div>
             <p class="setup__micpick-warn" id="micSourceWarn" data-testid="warning-mic-source" hidden>
               Headset mic is in use. Try an iPhone mic for clearer table audio.
             </p>
@@ -202,7 +205,8 @@
         <span class="chip chip--status" id="status" data-testid="status-monitor" aria-live="polite">Idle</span>
       </div>
 
-      <!-- iOS Bluetooth-mic warning, kept compact -->
+      <!-- iOS Bluetooth-mic warning, kept compact. Text is updated dynamically by app.js
+           when iOS overrides the user's chosen deviceId so the message matches reality. -->
       <p class="warn warn--mic" id="micSourceWarnMain" data-testid="warning-mic-source-main" hidden>
         Headset mic is being used. Tap <em>Change</em> and pick an iPhone microphone if available.
       </p>
@@ -218,6 +222,7 @@
           </select>
         </div>
         <div class="micpop__actions">
+          <button type="button" class="btn btn--ghost btn--mini" id="usePhoneMicBtnMain" data-testid="button-use-phone-mic" aria-label="Use iPhone microphone" hidden>Use iPhone mic</button>
           <button type="button" class="btn btn--ghost btn--mini" id="refreshMicsBtnMain" data-testid="button-refresh-mics" aria-label="Refresh microphone list">Refresh</button>
           <button type="button" class="btn btn--ghost btn--mini" id="micPopClose" data-testid="button-mic-popover-close" aria-label="Close mic picker">Done</button>
         </div>

@@ -152,6 +152,9 @@
     micPop: $('micPop'),
     micPopClose: $('micPopClose'),
     micPopHint: $('micPopHint'),
+    // v14 — "Use iPhone mic" shortcut buttons (setup + main popover)
+    usePhoneMicBtn: $('usePhoneMicBtn'),
+    usePhoneMicBtnMain: $('usePhoneMicBtnMain'),
     // v11 — Canvas waveform that replaces the jumpy meter bar
     waveformCanvas: $('waveformCanvas'),
 
@@ -1523,10 +1526,58 @@
     else ui.activeMicStatus.removeAttribute('data-state');
   }
 
-  function showMicWarn(show) {
+  // v14: warning text is now driven by app state. Three modes:
+  //   'headset'  — headset mic is the active input but the user did NOT explicitly
+  //                pick another mic. Default soft warning telling them to switch.
+  //   'override' — user explicitly selected an iPhone/built-in mic but iOS gave us
+  //                the headset anyway. The required, explicit warning text fires here.
+  //   ''         — no warning.
+  let micWarnMode = '';
+  function showMicWarn(show, mode) {
     // v10: drive both the setup-step warning and the compact main-screen banner.
-    if (ui.micSourceWarn) ui.micSourceWarn.hidden = !show;
-    if (ui.micSourceWarnMain) ui.micSourceWarnMain.hidden = !show;
+    micWarnMode = show ? (mode || 'headset') : '';
+    const setupMsg =
+      micWarnMode === 'override'
+        ? 'iOS chose headset mic despite selection. Try disconnect/reconnect or select iPhone mic then Start Listening again; reliable routing requires native app.'
+        : 'Headset mic is in use. Try an iPhone mic for clearer table audio.';
+    const mainMsg =
+      micWarnMode === 'override'
+        ? 'iOS chose headset mic despite selection. Try disconnect/reconnect or select iPhone mic then Start Listening again; reliable routing requires native app.'
+        : 'Headset mic is being used. Tap Change and pick an iPhone microphone if available.';
+    if (ui.micSourceWarn) {
+      ui.micSourceWarn.hidden = !show;
+      ui.micSourceWarn.textContent = setupMsg;
+      ui.micSourceWarn.setAttribute('data-mode', micWarnMode || 'none');
+    }
+    if (ui.micSourceWarnMain) {
+      ui.micSourceWarnMain.hidden = !show;
+      ui.micSourceWarnMain.textContent = mainMsg;
+      ui.micSourceWarnMain.setAttribute('data-mode', micWarnMode || 'none');
+    }
+  }
+
+  // v14: surface the "Use iPhone mic" shortcut whenever the device list contains
+  // a phone-style input that is NOT the currently chosen device. The buttons live
+  // in both the setup step and the main popover so they are reachable without
+  // navigating between screens.
+  function updateUsePhoneMicButtons() {
+    const phoneMic = (micPicker.devices || []).find((d) => d.deviceId && d.isPhoneMic);
+    const show = !!phoneMic && phoneMic.deviceId !== micPicker.selectedId;
+    if (ui.usePhoneMicBtn) {
+      ui.usePhoneMicBtn.hidden = !show;
+      ui.usePhoneMicBtn.disabled = !phoneMic;
+    }
+    if (ui.usePhoneMicBtnMain) {
+      ui.usePhoneMicBtnMain.hidden = !show;
+      ui.usePhoneMicBtnMain.disabled = !phoneMic;
+    }
+  }
+
+  async function selectPhoneMicIfAvailable() {
+    const phoneMic = (micPicker.devices || []).find((d) => d.deviceId && d.isPhoneMic);
+    if (!phoneMic) return false;
+    await handleMicSelectChange(phoneMic.deviceId);
+    return true;
   }
 
   async function refreshMicList(opts) {
@@ -1584,6 +1635,9 @@
     // Sync canonical selectedId after fillSelect (if previous was unavailable).
     if (ui.micSourceSelect && !ui.micSourceSelect.value) micPicker.selectedId = '';
 
+    // v14: refresh "Use iPhone mic" buttons whenever the device list changes.
+    updateUsePhoneMicButtons();
+
     // Update the active-mic status if we're not currently listening.
     if (!running) {
       if (!devices.length) {
@@ -1595,7 +1649,7 @@
           : (devices.find((d) => d.isPhoneMic) || devices[0]);
         if (chosen) {
           setActiveMicStatus(chosen.label, chosen.isHeadset ? 'warn' : (chosen.isPhoneMic ? 'ok' : ''));
-          showMicWarn(!!chosen.isHeadset);
+          showMicWarn(!!chosen.isHeadset, 'headset');
         }
       }
     }
@@ -1604,35 +1658,49 @@
 
   // v11: shared change handler so both the setup <select> and the new
   // main-screen popover <select> drive the same canonical mic selection.
+  // v14: hardened so picking a new mic on the main screen NEVER navigates,
+  // and so the live-swap cleanly tears down the previous stream/audio graph
+  // before requesting a new getUserMedia with the chosen deviceId.
   async function handleMicSelectChange(value) {
     micPicker.selectedId = value || '';
-    // Mirror across both selects so they don't drift.
+    // Mirror across both selects so they don't drift. We never trigger a
+    // navigation event here — these are just <select>s on two screens.
     if (ui.micSourceSelect && ui.micSourceSelect.value !== micPicker.selectedId) {
       ui.micSourceSelect.value = micPicker.selectedId;
     }
     if (ui.micSourceSelectMain && ui.micSourceSelectMain.value !== micPicker.selectedId) {
       ui.micSourceSelectMain.value = micPicker.selectedId;
     }
+    updateUsePhoneMicButtons();
     if (!running) {
       const dev = micPicker.devices.find((d) => d.deviceId === micPicker.selectedId);
       if (dev) {
         setActiveMicStatus(dev.label, dev.isHeadset ? 'warn' : (dev.isPhoneMic ? 'ok' : ''));
-        showMicWarn(!!dev.isHeadset);
+        showMicWarn(!!dev.isHeadset, 'headset');
       } else {
         setActiveMicStatus('Default microphone', '');
         showMicWarn(false);
       }
     } else {
-      // Live-swap: restart the audio chain with the new deviceId. Stays
-      // on the listening screen so the user does not lose context.
-      try { await restartWithSelectedMic(); } catch (_) {}
+      // Live-swap: stop the running audio graph + mic stream completely,
+      // then start again with the new deviceId. We await stop() so the
+      // previous track is fully .stop()ed before we ask for a new one;
+      // otherwise iOS has a tendency to hand us back the headset session.
+      try { await restartWithSelectedMic(); } catch (err) {
+        console.warn('Mic live-swap failed:', err);
+      }
     }
   }
   if (ui.micSourceSelect) {
     ui.micSourceSelect.addEventListener('change', () => handleMicSelectChange(ui.micSourceSelect.value || ''));
   }
   if (ui.micSourceSelectMain) {
-    ui.micSourceSelectMain.addEventListener('change', () => handleMicSelectChange(ui.micSourceSelectMain.value || ''));
+    ui.micSourceSelectMain.addEventListener('change', (ev) => {
+      // v14: explicitly stop event propagation so it cannot bubble into any
+      // ancestor handler that could send the user back to setup.
+      try { ev.stopPropagation(); } catch (_) {}
+      handleMicSelectChange(ui.micSourceSelectMain.value || '');
+    });
   }
   if (ui.refreshMicsBtn) {
     ui.refreshMicsBtn.addEventListener('click', () => refreshMicList({ user: true }));
@@ -1640,10 +1708,27 @@
   if (ui.refreshMicsBtnMain) {
     ui.refreshMicsBtnMain.addEventListener('click', () => refreshMicList({ user: true }));
   }
+  if (ui.usePhoneMicBtn) {
+    ui.usePhoneMicBtn.addEventListener('click', () => selectPhoneMicIfAvailable());
+  }
+  if (ui.usePhoneMicBtnMain) {
+    ui.usePhoneMicBtnMain.addEventListener('click', (ev) => {
+      try { ev.stopPropagation(); } catch (_) {}
+      selectPhoneMicIfAvailable();
+    });
+  }
 
   async function restartWithSelectedMic() {
     if (!running) return;
-    stop();
+    // Tear down first so the old (often headset) MediaStreamTrack is fully
+    // .stop()ed and the AudioContext is closed BEFORE we request a fresh
+    // getUserMedia with the new deviceId constraint. On iOS this matters —
+    // an overlapping getUserMedia can be silently merged with the active
+    // audio session and reuse the previous input route.
+    try { stop(); } catch (_) {}
+    // Yield a frame so the browser actually releases the previous track
+    // before we re-request. Microtask is enough; we don’t need a real timer.
+    await new Promise((r) => setTimeout(r, 0));
     await start();
   }
 
@@ -1669,17 +1754,37 @@
     const settings = (typeof track.getSettings === 'function') ? track.getSettings() : {};
     const label = track.label || '';
     const cls = classifyMic(label);
+    const realId = settings && settings.deviceId ? settings.deviceId : '';
+    // The user's intent is `requestedId` (what they picked). The browser may
+    // have given us something else — either a different deviceId (settings)
+    // or, even when the deviceId matches, a label that still looks like a
+    // headset. Both cases count as an iOS override and we surface the
+    // explicit warning required by the spec.
+    const requestedId = micPicker.selectedId || '';
+    const requestedDev = requestedId
+      ? micPicker.devices.find((d) => d.deviceId === requestedId)
+      : null;
+    const requestedWasPhone = !!(requestedDev && requestedDev.isPhoneMic);
+    const idMismatch = !!(requestedId && realId && realId !== requestedId);
+    const labelLooksHeadset = !!cls.isHeadset;
+    const overrode = (requestedWasPhone && labelLooksHeadset) || (idMismatch && labelLooksHeadset);
+
     setActiveMicStatus(label || 'Active microphone', cls.isHeadset ? 'warn' : (cls.isPhoneMic ? 'ok' : ''));
-    showMicWarn(!!cls.isHeadset);
-    // If the chosen deviceId did not match what we got, sync the dropdown.
-    if (settings && settings.deviceId && ui.micSourceSelect) {
-      const realId = settings.deviceId;
-      if (micPicker.selectedId && realId !== micPicker.selectedId) {
-        // iOS likely overrode our selection. Reflect reality.
+    if (overrode) {
+      // Keep the dropdown showing what the user actually chose. We do NOT
+      // overwrite selectedId with the headset deviceId here — doing so
+      // hides the override from the user and prevents them from retrying.
+      showMicWarn(true, 'override');
+    } else {
+      showMicWarn(!!cls.isHeadset, 'headset');
+      // Only sync the canonical selection back to reality when the user did
+      // NOT explicitly request a different mic (e.g. “Default microphone”).
+      if (!requestedId && realId && ui.micSourceSelect) {
         if (Array.from(ui.micSourceSelect.options).some((o) => o.value === realId)) {
           ui.micSourceSelect.value = realId;
-          micPicker.selectedId = realId;
           if (ui.micSourceSelectMain) ui.micSourceSelectMain.value = realId;
+          micPicker.selectedId = realId;
+          updateUsePhoneMicButtons();
         }
       }
     }
